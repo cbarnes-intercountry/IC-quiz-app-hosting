@@ -6,6 +6,7 @@
 <title>Classroom Exam App</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
 <!-- Firebase Realtime Database (compat SDK). Loaded from Google's CDN. -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
@@ -61,6 +62,17 @@
   .option-btn{display:block;width:100%;text-align:left;background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:14px;margin-bottom:8px;font-size:1rem;font-weight:500;}
   .option-btn.selected{border-color:var(--primary);background:#eef2ff;}
   .qimg{max-width:100%;border-radius:10px;margin:10px 0;display:block;}
+  .order-list{margin:6px 0;}
+  .order-item{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1.5px solid var(--border);border-radius:10px;margin-bottom:8px;background:#fff;font-size:1rem;font-weight:500;touch-action:manipulation;}
+  .order-item .grip{cursor:grab;color:var(--muted);font-size:1.2rem;line-height:1;user-select:none;}
+  .order-item .ord-text{flex:1;}
+  .order-item .ord-btns{display:flex;flex-direction:column;gap:2px;}
+  .order-item .ord-btns button{padding:2px 8px;min-height:0;height:22px;font-size:.8rem;background:#eef1f8;color:var(--text);}
+  .order-item.sortable-ghost{opacity:.4;}
+  .order-item.sortable-chosen{border-color:var(--primary);}
+  .q-palette button.locked{background:#f0d0d0;color:#a33;cursor:not-allowed;}
+  .qe-answer-row{display:flex;gap:8px;align-items:center;margin-bottom:6px;}
+  .qe-answer-row input[type=text]{flex:1;}
   .timer-pill{font-variant-numeric:tabular-nums;font-weight:700;background:#fff2f0;color:var(--danger);border-radius:20px;padding:4px 12px;}
   .student-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:.9rem;gap:8px;}
   .alert-count{color:var(--danger);font-weight:700;}
@@ -82,7 +94,6 @@
     <div class="stack">
       <button class="btn-primary" onclick="showScreen('screen-teacher-password')">I'm the Teacher</button>
       <button class="btn-secondary" onclick="showScreen('screen-student-join')">I'm a Student</button>
-      <button class="btn-outline" onclick="showScreen('screen-admin-password')">Admin</button>
     </div>
   </div>
 </div>
@@ -188,14 +199,17 @@
 
 <!-- TEACHER SESSION -->
 <div class="screen" id="screen-teacher-login">
+  <div class="top-nav">
+    <a class="linklike" onclick="showScreen('screen-role')">&larr; Home</a>
+    <a class="linklike" title="Admin — quizzes &amp; schools" onclick="showScreen('screen-admin-password')" style="font-size:1.5rem;text-decoration:none;line-height:1;">&#9881;</a>
+  </div>
   <div class="card">
     <h1>Teacher — Session</h1>
     <p class="sub">Start a new session — a unique join code is generated automatically and shown once you pick a quiz.</p>
     <div class="stack" style="margin-top:16px;">
       <button class="btn-primary" onclick="teacherCreateSession()">New Session</button>
-      <button class="btn-secondary" onclick="openHistory()">📊 Past Quizzes &amp; Results (History)</button>
+      <button class="btn-secondary" onclick="openHistory()">Past Quizzes &amp; Results (History)</button>
     </div>
-    <p style="margin-top:16px;"><a class="linklike" onclick="showScreen('screen-role')">&larr; Back</a></p>
   </div>
 </div>
 
@@ -259,25 +273,43 @@
 
 <!-- QUESTION EDITOR -->
 <div class="screen" id="screen-question-editor">
+  <div class="top-nav">
+    <span class="badge" id="qe-counter">Question 1 of 1</span>
+    <a class="linklike" onclick="editorDone()">Save &amp; back to list</a>
+  </div>
   <div class="card">
-    <h2 id="qe-title">Add Question</h2>
+    <div class="row" style="align-items:center;margin-bottom:6px;">
+      <button class="btn-secondary" style="flex:1;" onclick="editorPrev()">&larr; Prev</button>
+      <button class="btn-secondary" style="flex:1;" onclick="editorNext()">Next &rarr;</button>
+      <button class="btn-primary" style="flex:1;" onclick="editorAddQuestion()">+ Add</button>
+      <button class="btn-danger" style="flex:0 0 auto;" title="Delete this question" onclick="editorDeleteCurrent()">&#128465;</button>
+    </div>
     <label>Question type</label>
     <select id="qe-type" onchange="renderQEditorOptions()">
       <option value="mcq">Multiple Choice</option>
       <option value="tf">True / False</option>
       <option value="text">Short Text Answer</option>
       <option value="numeric">Numeric Answer</option>
+      <option value="order">Puzzle — drag to order</option>
     </select>
     <label>Question text</label>
     <textarea id="qe-text" placeholder="Type the question..."></textarea>
     <label>Image URL (optional)</label>
     <input type="text" id="qe-image-url" placeholder="https://... (public image link)">
     <div id="qe-options-area"></div>
-    <label>Points</label>
-    <input type="number" id="qe-points" value="1" min="0">
+    <div class="row">
+      <div style="flex:1;">
+        <label>Points</label>
+        <input type="number" id="qe-points" value="1" min="0">
+      </div>
+      <div style="flex:1;">
+        <label>Time limit (seconds, 0 = none)</label>
+        <input type="number" id="qe-qtime" value="0" min="0">
+      </div>
+    </div>
+    <small class="hint">Per-question time limits apply in student-paced (open) mode: when time runs out, the question locks and the student moves on. Ignored in teacher-paced mode.</small>
     <div class="row" style="margin-top:16px;">
-      <button class="btn-primary" onclick="saveQuestion()">Save Question</button>
-      <button class="btn-outline" onclick="showScreen('screen-admin-builder')">Cancel</button>
+      <button class="btn-primary" onclick="editorDone()">Save &amp; Done</button>
     </div>
   </div>
 </div>
@@ -291,9 +323,13 @@
   <div class="card center">
     <h2>Student Join</h2>
     <p class="sub">Scan to join, or enter the code manually on the app page.</p>
-    <div id="qr-code" style="display:flex;justify-content:center;margin:10px 0;"></div>
+    <div id="qr-code" style="display:flex;justify-content:center;margin:10px 0;cursor:zoom-in;" title="Tap to enlarge for scanning" onclick="openQRFullscreen()"></div>
+    <small class="hint" style="margin-top:0;">Tap the QR code to enlarge it for the class.</small>
     <p style="font-size:1.6rem;font-weight:800;letter-spacing:2px;margin:6px 0;" id="dash-join-code"></p>
-    <button class="btn-outline" onclick="copyJoinLink()">Copy Join Link</button>
+    <div class="row">
+      <button class="btn-outline" onclick="copyQRImage('#qr-code', event)">Copy QR image</button>
+      <button class="btn-outline" onclick="copyJoinLink()">Copy Join Link</button>
+    </div>
   </div>
   <div class="card" style="margin-top:16px;">
     <h2>Test Control</h2>
@@ -377,6 +413,7 @@
     </span>
   </div>
   <div class="card">
+    <div id="q-timer" class="timer-pill" style="display:none;margin-bottom:10px;">--:--</div>
     <h2 id="q-text-display"></h2>
     <img id="q-img-display" class="qimg" style="display:none;">
     <div id="q-answer-area"></div>
@@ -398,6 +435,19 @@
     <p class="sub" id="fb-percentage" style="font-size:1.3rem;"></p>
     <p class="sub">Thanks, <span id="fb-name"></span>! You may close this window.</p>
   </div>
+</div>
+
+<!-- FULLSCREEN QR OVERLAY -->
+<div id="qr-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:1000;flex-direction:column;align-items:center;justify-content:center;padding:20px;" onclick="closeQRFullscreen()">
+  <div style="background:#fff;padding:26px;border-radius:16px;text-align:center;max-width:92vw;" onclick="event.stopPropagation()">
+    <div id="qr-overlay-code" style="display:flex;justify-content:center;"></div>
+    <p style="font-size:2.2rem;font-weight:800;letter-spacing:3px;margin:16px 0 4px;" id="qr-overlay-text"></p>
+    <div class="row" style="margin-top:12px;">
+      <button class="btn-outline" onclick="copyQRImage('#qr-overlay-code', event)">Copy QR image</button>
+      <button class="btn-secondary" onclick="closeQRFullscreen()">Close</button>
+    </div>
+  </div>
+  <p style="color:#fff;margin-top:16px;font-size:.9rem;">Tap anywhere to close</p>
 </div>
 
 <script>
@@ -890,55 +940,58 @@ async function deleteQuizFromLibrary(){
   try{ await Backend.deleteQuiz(key); loadQuizList(); }catch(e){ alert("Delete failed: "+e.message); }
 }
 
-/* ============ QUESTION BANK ============ */
+/* ============ QUESTION BANK (edit-in-place editor) ============ */
+let EDIT_INDEX = -1; // index into TEACHER.questions currently open in the editor
+
 function renderQBank(){
   document.getElementById("qcount").textContent = TEACHER.questions.length;
   const list = document.getElementById("qbank-list");
   list.innerHTML = "";
+  if(TEACHER.questions.length===0){ list.innerHTML='<p class="sub">No questions yet. Use “+ Add Question”.</p>'; return; }
   TEACHER.questions.forEach((q,i)=>{
     const div=document.createElement("div"); div.className="qbank-item";
-    div.innerHTML = '<span class="qtxt">'+(i+1)+'. ['+q.type.toUpperCase()+'] '+q.text+'</span>'+
-      '<span><button class="btn-outline" style="padding:6px 10px;" onclick="removeQuestion('+i+')">Delete</button></span>';
+    const txt=document.createElement("span"); txt.className="qtxt"; txt.style.cursor="pointer"; txt.title="Edit";
+    txt.textContent=(i+1)+'. ['+(q.type||"?").toUpperCase()+'] '+(q.text||"(no text yet)");
+    txt.onclick=()=>openQuestionEditor(i);
+    const btns=document.createElement("span");
+    const edit=document.createElement("button"); edit.className="btn-outline"; edit.style.padding="6px 10px"; edit.textContent="Edit"; edit.onclick=()=>openQuestionEditor(i);
+    const del=document.createElement("button"); del.className="btn-danger"; del.style.cssText="padding:6px 10px;margin-left:6px;"; del.title="Delete"; del.innerHTML="&#128465;"; del.onclick=()=>removeQuestion(i);
+    btns.appendChild(edit); btns.appendChild(del);
+    div.appendChild(txt); div.appendChild(btns);
     list.appendChild(div);
   });
 }
-function removeQuestion(i){ TEACHER.questions.splice(i,1); renderQBank(); }
+function removeQuestion(i){ if(!confirm("Delete this question?")) return; TEACHER.questions.splice(i,1); renderQBank(); }
+function blankQuestion(){ return { id:"q_"+uid(6), type:"mcq", text:"", points:1, image:null, timeLimitSec:0 }; }
 
-function openQuestionEditor(){
-  document.getElementById("qe-text").value="";
-  document.getElementById("qe-type").value="mcq";
-  document.getElementById("qe-points").value=1;
-  document.getElementById("qe-image-url").value="";
-  renderQEditorOptions();
+// Open the editor at index i. With no valid index, append a new blank question and edit that.
+function openQuestionEditor(i){
+  if(typeof i!=="number" || i<0 || i>=TEACHER.questions.length){
+    TEACHER.questions.push(blankQuestion());
+    i = TEACHER.questions.length-1;
+  }
+  EDIT_INDEX = i;
+  writeQuestionToForm(TEACHER.questions[i]);
+  document.getElementById("qe-counter").textContent = "Question "+(EDIT_INDEX+1)+" of "+TEACHER.questions.length;
   showScreen("screen-question-editor");
 }
-function renderQEditorOptions(){
-  const type=document.getElementById("qe-type").value;
-  const area=document.getElementById("qe-options-area");
-  if(type==="mcq"){
-    area.innerHTML='<label>Answer options (check the correct one)</label><div id="mcq-opts"></div>'+
-      '<button type="button" class="btn-outline" onclick="addMCQOption()">+ Add option</button>';
-    addMCQOption(); addMCQOption();
-  } else if(type==="tf"){
-    area.innerHTML='<label>Correct answer</label><select id="tf-correct"><option value="True">True</option><option value="False">False</option></select>';
-  } else if(type==="text"){
-    area.innerHTML='<label>Accepted answer(s) — comma-separated, not case sensitive</label><input type="text" id="text-correct" placeholder="e.g. supply and demand, market equilibrium">';
-  } else if(type==="numeric"){
-    area.innerHTML='<label>Correct number</label><input type="number" id="num-correct" step="any"><label>Tolerance (+/-, optional)</label><input type="number" id="num-tol" step="any" value="0">';
-  }
+function writeQuestionToForm(q){
+  document.getElementById("qe-type").value = q.type || "mcq";
+  document.getElementById("qe-text").value = q.text || "";
+  document.getElementById("qe-image-url").value = q.image || "";
+  document.getElementById("qe-points").value = (q.points!==undefined?q.points:1);
+  document.getElementById("qe-qtime").value = q.timeLimitSec || 0;
+  renderQEditorOptions(q);
 }
-function addMCQOption(){
-  const wrap=document.getElementById("mcq-opts"); const idx=wrap.children.length;
-  const row=document.createElement("div"); row.className="opt-row";
-  row.innerHTML='<input type="radio" name="mcq-correct" value="'+idx+'"><input type="text" placeholder="Option text"><button type="button" class="btn-outline" style="padding:6px 10px;" onclick="this.parentElement.remove()">x</button>';
-  wrap.appendChild(row);
-}
-function saveQuestion(){
+// Read the form into a question object, or return null (after alerting) if invalid.
+function readQuestionFromForm(){
   const type=document.getElementById("qe-type").value;
   const text=document.getElementById("qe-text").value.trim();
   const points=parseFloat(document.getElementById("qe-points").value)||0;
-  if(!text){ alert("Please enter question text."); return; }
-  const q={ id:"q_"+uid(6), type, text, points, image: document.getElementById("qe-image-url").value.trim()||null };
+  const timeLimitSec=Math.max(0, parseInt(document.getElementById("qe-qtime").value,10)||0);
+  if(!text){ alert("Please enter the question text."); return null; }
+  const cur=TEACHER.questions[EDIT_INDEX]||{};
+  const q={ id:cur.id||("q_"+uid(6)), type, text, points, timeLimitSec, image:document.getElementById("qe-image-url").value.trim()||null };
   if(type==="mcq"){
     const opts=[]; let correctIdx=null;
     document.querySelectorAll("#mcq-opts .opt-row").forEach(row=>{
@@ -946,15 +999,87 @@ function saveQuestion(){
       const checked=row.querySelector("input[type=radio]").checked;
       if(val){ opts.push(val); if(checked) correctIdx=opts.length-1; }
     });
-    if(opts.length<2||correctIdx===null){ alert("Add at least 2 options and mark the correct one."); return; }
+    if(opts.length<2||correctIdx===null){ alert("Add at least 2 options and select the correct one."); return null; }
     q.options=opts; q.correct=opts[correctIdx];
   } else if(type==="tf"){ q.options=["True","False"]; q.correct=document.getElementById("tf-correct").value; }
-  else if(type==="text"){ q.correct=document.getElementById("text-correct").value.split(",").map(s=>s.trim()).filter(Boolean); }
-  else if(type==="numeric"){ q.correct=parseFloat(document.getElementById("num-correct").value); q.tolerance=parseFloat(document.getElementById("num-tol").value)||0; }
-  TEACHER.questions.push(q);
-  renderQBank();
-  showScreen("screen-admin-builder");
+  else if(type==="text"){
+    const accepted=[]; document.querySelectorAll("#text-answers .qe-answer-row input[type=text]").forEach(inp=>{ const v=inp.value.trim(); if(v) accepted.push(v); });
+    if(accepted.length===0){ alert("Add at least one acceptable answer."); return null; }
+    q.correct=accepted; q.caseSensitive=document.getElementById("text-casesens").checked;
+  }
+  else if(type==="numeric"){ const n=parseFloat(document.getElementById("num-correct").value); if(isNaN(n)){ alert("Enter the correct number."); return null; } q.correct=n; q.tolerance=parseFloat(document.getElementById("num-tol").value)||0; }
+  else if(type==="order"){
+    const items=[]; document.querySelectorAll("#order-items .qe-answer-row input[type=text]").forEach(inp=>{ const v=inp.value.trim(); if(v) items.push(v); });
+    if(items.length<2){ alert("Add at least 2 items (in the correct order)."); return null; }
+    q.items=items; q.correct=items.slice();
+  }
+  return q;
 }
+function commitCurrentQuestion(){ const q=readQuestionFromForm(); if(!q) return false; TEACHER.questions[EDIT_INDEX]=q; return true; }
+
+function renderQEditorOptions(q){
+  q = q || {};
+  const type=document.getElementById("qe-type").value;
+  const area=document.getElementById("qe-options-area");
+  if(type==="mcq"){
+    area.innerHTML='<label>Answer options (select the correct one)</label><div id="mcq-opts"></div>'+
+      '<button type="button" class="btn-outline" onclick="addMCQOption()">+ Add option</button>';
+    if(q.type==="mcq"&&q.options){ q.options.forEach(o=>addMCQOption(o, o===q.correct)); }
+    else { addMCQOption(); addMCQOption(); }
+  } else if(type==="tf"){
+    const c=(q.type==="tf"?q.correct:"True");
+    area.innerHTML='<label>Correct answer</label><select id="tf-correct"><option value="True"'+(c==="True"?" selected":"")+'>True</option><option value="False"'+(c==="False"?" selected":"")+'>False</option></select>';
+  } else if(type==="text"){
+    area.innerHTML='<label>Acceptable answers (any one counts as correct)</label><div id="text-answers"></div>'+
+      '<button type="button" class="btn-outline" onclick="addTextAnswer()">+ Add acceptable answer</button>'+
+      '<div class="toggle-row" style="margin-top:10px;"><span>Case sensitive (exact match — capitals &amp; special characters must match)</span>'+
+      '<label class="switch"><input type="checkbox" id="text-casesens"><span class="slider"></span></label></div>';
+    const accepted=(q.type==="text"&&Array.isArray(q.correct))?q.correct:null;
+    if(accepted&&accepted.length){ accepted.forEach(a=>addTextAnswer(a)); } else { addTextAnswer(); }
+    document.getElementById("text-casesens").checked = (q.type==="text") ? (q.caseSensitive!==false) : true;
+  } else if(type==="numeric"){
+    const cor=(q.type==="numeric"&&q.correct!==undefined)?q.correct:"";
+    const tol=(q.type==="numeric"&&q.tolerance!==undefined)?q.tolerance:0;
+    area.innerHTML='<label>Correct number</label><input type="number" id="num-correct" step="any" value="'+cor+'"><label>Tolerance (+/-, optional)</label><input type="number" id="num-tol" step="any" value="'+tol+'">';
+  } else if(type==="order"){
+    area.innerHTML='<label>Items in the CORRECT order (students see them shuffled and drag to reorder)</label><div id="order-items"></div>'+
+      '<button type="button" class="btn-outline" onclick="addOrderItem()">+ Add item</button>';
+    const items=(q.type==="order"&&q.items)?q.items:null;
+    if(items&&items.length){ items.forEach(it=>addOrderItem(it)); } else { addOrderItem(); addOrderItem(); addOrderItem(); }
+  }
+}
+function addMCQOption(value, checked){
+  const wrap=document.getElementById("mcq-opts");
+  const row=document.createElement("div"); row.className="opt-row";
+  row.innerHTML='<input type="radio" name="mcq-correct"'+(checked?" checked":"")+'><input type="text" placeholder="Option text"><button type="button" class="btn-outline" style="padding:6px 10px;" onclick="this.parentElement.remove()">x</button>';
+  if(value!==undefined) row.querySelector("input[type=text]").value=value;
+  wrap.appendChild(row);
+}
+function addTextAnswer(value){
+  const wrap=document.getElementById("text-answers");
+  const row=document.createElement("div"); row.className="qe-answer-row";
+  row.innerHTML='<input type="text" placeholder="Accepted answer"><button type="button" class="btn-outline" style="padding:6px 10px;" onclick="this.parentElement.remove()">x</button>';
+  if(value!==undefined) row.querySelector("input[type=text]").value=value;
+  wrap.appendChild(row);
+}
+function addOrderItem(value){
+  const wrap=document.getElementById("order-items");
+  const row=document.createElement("div"); row.className="qe-answer-row";
+  row.innerHTML='<input type="text" placeholder="Item text"><button type="button" class="btn-outline" style="padding:6px 10px;" onclick="this.parentElement.remove()">x</button>';
+  if(value!==undefined) row.querySelector("input[type=text]").value=value;
+  wrap.appendChild(row);
+}
+// Editor navigation
+function editorPrev(){ if(!commitCurrentQuestion()) return; if(EDIT_INDEX>0) openQuestionEditor(EDIT_INDEX-1); else alert("This is the first question."); }
+function editorNext(){ if(!commitCurrentQuestion()) return; if(EDIT_INDEX<TEACHER.questions.length-1) openQuestionEditor(EDIT_INDEX+1); else alert("This is the last question. Use “+ Add” to make another."); }
+function editorAddQuestion(){ if(!commitCurrentQuestion()) return; TEACHER.questions.push(blankQuestion()); openQuestionEditor(TEACHER.questions.length-1); }
+function editorDeleteCurrent(){
+  if(!confirm("Delete this question?")) return;
+  TEACHER.questions.splice(EDIT_INDEX,1);
+  if(TEACHER.questions.length===0){ renderQBank(); showScreen("screen-admin-builder"); return; }
+  openQuestionEditor(Math.min(EDIT_INDEX, TEACHER.questions.length-1));
+}
+function editorDone(){ if(!commitCurrentQuestion()) return; renderQBank(); showScreen("screen-admin-builder"); }
 function exportQuestionsJSON(){
   const blob=new Blob([JSON.stringify(TEACHER.questions,null,2)],{type:"application/json"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="questions.json"; a.click();
@@ -995,11 +1120,12 @@ function parseQuizRows(rows){
     const text=get(row,"Question");
     if(!typeRaw&&!text) return;
     if(!text){ errors.push("Row "+rowNum+": missing question text."); return; }
-    const typeMap={"mcq":"mcq","multiple choice":"mcq","true/false":"tf","tf":"tf","true false":"tf","text":"text","short text":"text","numeric":"numeric","number":"numeric"};
+    const typeMap={"mcq":"mcq","multiple choice":"mcq","true/false":"tf","tf":"tf","true false":"tf","text":"text","short text":"text","short answer":"text","numeric":"numeric","number":"numeric","order":"order","puzzle":"order","ordering":"order"};
     const type=typeMap[typeRaw];
     if(!type){ errors.push("Row "+rowNum+': unknown Type "'+typeRaw+'".'); return; }
     const points=parseFloat(get(row,"Points"))||1;
-    const q={ id:"q_"+uid(6), type, text, points, image: get(row,"ImageURL")||null };
+    const timeLimitSec=Math.max(0, parseInt(get(row,"TimeLimitSec"),10)||0);
+    const q={ id:"q_"+uid(6), type, text, points, timeLimitSec, image: get(row,"ImageURL")||null };
     if(type==="mcq"){
       const opts=["OptionA","OptionB","OptionC","OptionD","OptionE"].map(c=>get(row,c)).filter(Boolean);
       if(opts.length<2){ errors.push("Row "+rowNum+": MCQ needs at least 2 options."); return; }
@@ -1017,10 +1143,16 @@ function parseQuizRows(rows){
       const accepted=get(row,"Correct").split(",").map(s=>s.trim()).filter(Boolean);
       if(accepted.length===0){ errors.push("Row "+rowNum+": text question needs an accepted answer."); return; }
       q.correct=accepted;
+      const cs=get(row,"CaseSensitive").toLowerCase();
+      q.caseSensitive = !(cs==="false"||cs==="no"||cs==="0"); // default case-sensitive
     } else if(type==="numeric"){
       const n=parseFloat(get(row,"Correct"));
       if(isNaN(n)){ errors.push("Row "+rowNum+": numeric Correct must be a number."); return; }
       q.correct=n; q.tolerance=parseFloat(get(row,"Tolerance"))||0;
+    } else if(type==="order"){
+      const items=["OptionA","OptionB","OptionC","OptionD","OptionE"].map(c=>get(row,c)).filter(Boolean);
+      if(items.length<2){ errors.push("Row "+rowNum+": puzzle needs at least 2 items (in OptionA..E, correct order)."); return; }
+      q.items=items; q.correct=items.slice();
     }
     questions.push(q);
   });
@@ -1082,6 +1214,45 @@ function copyJoinLink(){
   if(location.protocol==="file:"){ alert("Open the hosted URL first — there's no shareable link from a local file."); return; }
   const url=getJoinUrl();
   navigator.clipboard ? navigator.clipboard.writeText(url).then(()=>alert("Link copied:\n"+url)) : prompt("Copy this link:",url);
+}
+// Enlarge the QR to (near) full screen so the class can scan it from a distance.
+function openQRFullscreen(){
+  const overlay=document.getElementById("qr-overlay");
+  const holder=document.getElementById("qr-overlay-code"); holder.innerHTML="";
+  document.getElementById("qr-overlay-text").textContent=TEACHER.sessionCode||"";
+  if(location.protocol!=="file:" && typeof QRCode!=="undefined" && TEACHER.sessionCode){
+    const s=Math.max(220, Math.min(Math.min(window.innerWidth, window.innerHeight)-180, 440));
+    new QRCode(holder,{text:getJoinUrl(),width:s,height:s,correctLevel:QRCode.CorrectLevel.M});
+  } else {
+    holder.innerHTML='<p class="sub" style="max-width:320px;">QR needs the hosted URL. Students can type the code above.</p>';
+  }
+  overlay.style.display="flex";
+}
+function closeQRFullscreen(){ document.getElementById("qr-overlay").style.display="none"; }
+// Read the rendered QR (canvas or img) as a PNG blob.
+function getQRBlob(sel, cb){
+  const c=document.querySelector(sel+" canvas");
+  if(c && c.toBlob){ c.toBlob(cb); return; }
+  const img=document.querySelector(sel+" img");
+  if(img && img.src){ fetch(img.src).then(r=>r.blob()).then(cb).catch(()=>cb(null)); return; }
+  cb(null);
+}
+// Copy the QR image to the clipboard (fallback: download it as PNG).
+function copyQRImage(sel, ev){
+  if(ev) ev.stopPropagation();
+  getQRBlob(sel, async(blob)=>{
+    if(!blob){ alert("QR image isn't available yet — make sure you're on the hosted URL."); return; }
+    try{
+      if(navigator.clipboard && window.ClipboardItem){
+        await navigator.clipboard.write([new ClipboardItem({[blob.type||"image/png"]:blob})]);
+        alert("QR image copied — paste it into your slides, email or chat.");
+      } else { throw new Error("no image clipboard"); }
+    }catch(e){
+      const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+      a.download="join-qr-"+(TEACHER.sessionCode||"code")+".png"; a.click();
+      alert("Your browser can't copy images to the clipboard, so the QR was downloaded as a PNG — attach or paste that instead.");
+    }
+  });
 }
 async function pacedAdvance(dir){
   let idx=(TEACHER.settings.currentIndex||0)+dir;
@@ -1182,7 +1353,8 @@ async function buildAndDownloadCSV(runId, code, questionsMaybe, schoolMaybe){
     }
     (r.answers||[]).forEach((ans,i)=>{
       const q=questions[ans.questionIndex]||{};
-      rows.push(base.concat([ i+1, q.text||"", q.type||"", ans.answer, formatCorrect(q), ans.isCorrect?"Yes":"No",
+      const ansCell=Array.isArray(ans.answer)?ans.answer.join(" > "):ans.answer;
+      rows.push(base.concat([ i+1, q.text||"", q.type||"", ansCell, formatCorrect(q), ans.isCorrect?"Yes":"No",
         ans.pointsAwarded, q.points||0, (ans.timeSpentSec||0).toFixed(1), r.score, r.totalPossible, r.percentage.toFixed(1),
         (r.cheatAlerts||[]).length, alertDetails, r.finishedAt?fmtDate(r.finishedAt):"" ]));
     });
@@ -1191,7 +1363,7 @@ async function buildAndDownloadCSV(runId, code, questionsMaybe, schoolMaybe){
   const blob=new Blob([csv],{type:"text/csv"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="exam_results_"+(code||runId)+".csv"; a.click();
 }
-function formatCorrect(q){ if(!q.type) return ""; if(q.type==="text") return (q.correct||[]).join(" / "); return q.correct; }
+function formatCorrect(q){ if(!q.type) return ""; if(q.type==="text") return (q.correct||[]).join(" / "); if(q.type==="order") return (q.correct||q.items||[]).join(" > "); return q.correct; }
 
 /* ============ HISTORY TAB ============ */
 // Reports are visible for 6 months; older runs are hidden here (and purged/archived server-side).
@@ -1296,6 +1468,7 @@ function studentBeginTest(){
 }
 
 function startStudentTest(){
+  STUDENT.qDeadlines={}; STUDENT.qLocked={};   // per-question timing state
   if(STUDENT.meta.security) enableSecurityMonitoring();
   if(STUDENT.meta.timeLimitMin>0){
     document.getElementById("test-timer").style.display="inline-block";
@@ -1322,13 +1495,17 @@ function updateOverallTimer(){
   if(remain<=0){ clearInterval(STUDENT.timerInterval); studentSubmitTest(true); }
 }
 function goToQuestion(pos){
+  // Can't navigate to a question whose per-question timer has already expired.
+  if(STUDENT.qLocked && STUDENT.qLocked[pos] && pos!==STUDENT.currentPos){ return; }
   if(STUDENT.questionStartTs!==null){
     const elapsed=(Date.now()-STUDENT.questionStartTs)/1000;
     STUDENT.timeSpent[STUDENT.currentPos]=(STUDENT.timeSpent[STUDENT.currentPos]||0)+elapsed;
   }
+  clearQuestionTimer();
   STUDENT.currentPos=pos; STUDENT.questionStartTs=Date.now();
   renderCurrentQuestion();
 }
+function clearQuestionTimer(){ if(STUDENT.qTimerInterval){ clearInterval(STUDENT.qTimerInterval); STUDENT.qTimerInterval=null; } }
 let _syncTimer=null, _syncPending=false;
 function syncProgress(immediate){
   if(STUDENT.finished||!STUDENT.sessionCode) return;
@@ -1343,26 +1520,92 @@ function syncProgress(immediate){
   clearTimeout(_syncTimer);
   _syncTimer=setTimeout(doIt, 4000);
 }
+function escapeHtml(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
 function renderCurrentQuestion(){
-  const q=STUDENT.questions[STUDENT.order[STUDENT.currentPos]];
-  document.getElementById("test-progress").textContent="Question "+(STUDENT.currentPos+1)+" of "+STUDENT.order.length;
+  const pos=STUDENT.currentPos;
+  const q=STUDENT.questions[STUDENT.order[pos]];
+  const locked=!!(STUDENT.qLocked&&STUDENT.qLocked[pos]);
+  document.getElementById("test-progress").textContent="Question "+(pos+1)+" of "+STUDENT.order.length;
   document.getElementById("q-text-display").textContent=q.text;
   const img=document.getElementById("q-img-display");
   if(q.image){ img.src=q.image; img.style.display="block"; } else img.style.display="none";
   const area=document.getElementById("q-answer-area");
-  const existing=STUDENT.answers[STUDENT.currentPos];
+  const existing=STUDENT.answers[pos];
+  const dis=locked?" disabled":"";
   if(q.type==="mcq"){
-    area.innerHTML=q.options.map(opt=>'<button type="button" class="option-btn '+(existing===opt?"selected":"")+'" onclick="selectAnswer('+JSON.stringify(opt).replace(/"/g,"&quot;")+', this)">'+opt+'</button>').join("");
+    area.innerHTML=q.options.map(opt=>'<button type="button" class="option-btn '+(existing===opt?"selected":"")+'"'+dis+' onclick="selectAnswer('+JSON.stringify(opt).replace(/"/g,"&quot;")+', this)">'+escapeHtml(opt)+'</button>').join("");
   } else if(q.type==="tf"){
-    area.innerHTML=["True","False"].map(opt=>'<button type="button" class="option-btn '+(existing===opt?"selected":"")+'" onclick="selectAnswer(\''+opt+'\', this)">'+opt+'</button>').join("");
+    area.innerHTML=["True","False"].map(opt=>'<button type="button" class="option-btn '+(existing===opt?"selected":"")+'"'+dis+' onclick="selectAnswer(\''+opt+'\', this)">'+opt+'</button>').join("");
   } else if(q.type==="text"){
-    area.innerHTML='<input type="text" id="free-answer" value="'+(existing||"")+'" oninput="STUDENT.answers[STUDENT.currentPos]=this.value; refreshPalette(); syncProgress();">';
+    area.innerHTML='<input type="text" id="free-answer"'+dis+' value="'+escapeHtml(existing||"")+'" oninput="STUDENT.answers[STUDENT.currentPos]=this.value; refreshPalette(); syncProgress();">';
   } else if(q.type==="numeric"){
-    area.innerHTML='<input type="number" step="any" id="free-answer" value="'+(existing||"")+'" oninput="STUDENT.answers[STUDENT.currentPos]=this.value; refreshPalette(); syncProgress();">';
+    area.innerHTML='<input type="number" step="any" id="free-answer"'+dis+' value="'+escapeHtml(existing||"")+'" oninput="STUDENT.answers[STUDENT.currentPos]=this.value; refreshPalette(); syncProgress();">';
+  } else if(q.type==="order"){
+    renderOrderArea(pos, q, locked);
   }
+  if(locked){ const note=document.createElement("p"); note.className="sub"; note.style.color="var(--danger)"; note.textContent="Time's up on this question — it's locked."; area.appendChild(note); }
+  setupQuestionTimer(pos, q, locked);
   renderPalette();
 }
+// Drag-to-order rendering (SortableJS with ▲▼ button fallback).
+function renderOrderArea(pos, q, locked){
+  const area=document.getElementById("q-answer-area");
+  let arrangement=Array.isArray(STUDENT.answers[pos]) ? STUDENT.answers[pos] : shuffle((q.items||[]).slice());
+  STUDENT.answers[pos]=arrangement; // counts as attempted + persists arrangement
+  const list=document.createElement("div"); list.className="order-list"; list.id="order-sortable";
+  arrangement.forEach((val,idx)=>{
+    const row=document.createElement("div"); row.className="order-item"; row.setAttribute("data-val", val);
+    const grip=document.createElement("span"); grip.className="grip"; grip.textContent="⋮⋮";
+    const txt=document.createElement("span"); txt.className="ord-text"; txt.textContent=val;
+    const btns=document.createElement("span"); btns.className="ord-btns";
+    const up=document.createElement("button"); up.type="button"; up.textContent="▲"; up.onclick=()=>moveOrderItem(pos,idx,-1);
+    const dn=document.createElement("button"); dn.type="button"; dn.textContent="▼"; dn.onclick=()=>moveOrderItem(pos,idx,1);
+    btns.appendChild(up); btns.appendChild(dn);
+    row.appendChild(grip); row.appendChild(txt); if(!locked) row.appendChild(btns);
+    list.appendChild(row);
+  });
+  area.innerHTML="";
+  const hint=document.createElement("small"); hint.className="hint"; hint.textContent="Drag the rows (or use ▲▼) to put them in the correct order.";
+  area.appendChild(hint); area.appendChild(list);
+  if(!locked && typeof Sortable!=="undefined"){
+    if(STUDENT._sortable){ try{ STUDENT._sortable.destroy(); }catch(e){} }
+    STUDENT._sortable=Sortable.create(list,{ animation:150, handle:".order-item", onEnd:()=>readOrderFromDOM(pos) });
+  }
+}
+function readOrderFromDOM(pos){
+  const list=document.getElementById("order-sortable"); if(!list) return;
+  STUDENT.answers[pos]=[...list.querySelectorAll(".order-item")].map(el=>el.getAttribute("data-val"));
+  refreshPalette(); syncProgress();
+}
+function moveOrderItem(pos,idx,dir){
+  const arr=STUDENT.answers[pos].slice(); const j=idx+dir;
+  if(j<0||j>=arr.length) return;
+  [arr[idx],arr[j]]=[arr[j],arr[idx]];
+  STUDENT.answers[pos]=arr;
+  const q=STUDENT.questions[STUDENT.order[pos]];
+  renderOrderArea(pos, q, false);
+  syncProgress();
+}
+// Per-question countdown: active only in student-paced (open) mode when the question has a limit.
+function setupQuestionTimer(pos, q, locked){
+  clearQuestionTimer();
+  const pill=document.getElementById("q-timer");
+  if(STUDENT.paced || !q.timeLimitSec || q.timeLimitSec<=0 || locked){ pill.style.display="none"; return; }
+  if(!STUDENT.qDeadlines[pos]) STUDENT.qDeadlines[pos]=Date.now()+q.timeLimitSec*1000;
+  pill.style.display="inline-block";
+  const tick=()=>{
+    const remain=Math.max(0,(STUDENT.qDeadlines[pos]-Date.now())/1000);
+    pill.textContent="⏱ "+fmtTime(remain);
+    if(remain<=0){ clearQuestionTimer(); STUDENT.qLocked[pos]=true;
+      if(STUDENT.currentPos < STUDENT.order.length-1) goToQuestion(STUDENT.currentPos+1);
+      else renderCurrentQuestion();
+    }
+  };
+  tick();
+  STUDENT.qTimerInterval=setInterval(tick,250);
+}
 function selectAnswer(val,btn){
+  if(btn.disabled) return;
   STUDENT.answers[STUDENT.currentPos]=val;
   document.querySelectorAll("#q-answer-area .option-btn").forEach(b=>b.classList.remove("selected"));
   btn.classList.add("selected");
@@ -1371,8 +1614,10 @@ function selectAnswer(val,btn){
 function renderPalette(){
   const wrap=document.getElementById("q-palette"); wrap.innerHTML="";
   STUDENT.order.forEach((_,i)=>{
+    const answered=STUDENT.answers[i]!==undefined && STUDENT.answers[i]!=="";
     const b=document.createElement("button"); b.textContent=i+1;
-    b.className=(STUDENT.answers[i]!==undefined?"answered ":"")+(i===STUDENT.currentPos?"current":"");
+    const lockedCls=(STUDENT.qLocked&&STUDENT.qLocked[i])?"locked ":"";
+    b.className=lockedCls+(answered?"answered ":"")+(i===STUDENT.currentPos?"current":"");
     b.onclick=()=>{ if(!STUDENT.paced) goToQuestion(i); };
     wrap.appendChild(b);
   });
@@ -1417,8 +1662,13 @@ function scoreAnswers(questions, order, answers, timeSpent){
     const given=answers?answers[pos]:undefined;
     let isCorrect=false; totalPossible+=(q.points||0);
     if(q.type==="mcq"||q.type==="tf"){ isCorrect=given!==undefined&&given===q.correct; }
-    else if(q.type==="text"){ const norm=(given||"").trim().toLowerCase(); isCorrect=(q.correct||[]).some(c=>c.trim().toLowerCase()===norm); }
+    else if(q.type==="text"){
+      const g=(given||"").trim();
+      if(q.caseSensitive===false){ const norm=g.toLowerCase(); isCorrect=(q.correct||[]).some(c=>String(c).trim().toLowerCase()===norm); }
+      else { isCorrect=(q.correct||[]).some(c=>String(c).trim()===g); }
+    }
     else if(q.type==="numeric"){ if(given!==undefined&&given!=="") isCorrect=Math.abs(parseFloat(given)-q.correct)<=(q.tolerance||0); }
+    else if(q.type==="order"){ const corr=q.correct||q.items||[]; isCorrect=Array.isArray(given)&&given.length===corr.length&&given.every((v,idx)=>v===corr[idx]); }
     const pointsAwarded=isCorrect?(q.points||0):0; score+=pointsAwarded;
     return { questionIndex:qIndex, answer:given===undefined?"":given, isCorrect, pointsAwarded, timeSpentSec:(timeSpent&&timeSpent[pos])||0 };
   });
@@ -1444,6 +1694,7 @@ async function studentSubmitTest(auto){
   if(!auto && document.fullscreenElement) document.exitFullscreen && document.exitFullscreen();
   if(STUDENT.timerInterval) clearInterval(STUDENT.timerInterval);
   if(STUDENT.checkpointInterval) clearInterval(STUDENT.checkpointInterval);
+  clearQuestionTimer();
   if(STUDENT.questionStartTs!==null){
     const elapsed=(Date.now()-STUDENT.questionStartTs)/1000;
     STUDENT.timeSpent[STUDENT.currentPos]=(STUDENT.timeSpent[STUDENT.currentPos]||0)+elapsed;
