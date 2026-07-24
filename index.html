@@ -172,14 +172,12 @@
   </div>
   <div class="card" style="margin-top:16px;">
     <h2>Save as Quiz</h2>
-    <p class="sub">Name this set of questions and assign it to a school so teachers can select it.</p>
+    <p class="sub">Name this set of questions and assign it to one or more schools so their teachers can select it.</p>
     <label>Quiz name</label>
     <input type="text" id="quiz-save-name" placeholder="e.g. Marketing Midterm 2026">
-    <label>Assign to school</label>
-    <div class="row">
-      <select id="quiz-school-select" style="flex:2;"><option value="">— select a school —</option></select>
-      <button class="btn-primary" style="flex:1;" onclick="saveQuizToLibrary()">Save Quiz</button>
-    </div>
+    <label>Assign to school(s) — tick all that apply</label>
+    <div id="quiz-school-checks" style="border:1.5px solid var(--border);border-radius:10px;padding:10px;max-height:180px;overflow:auto;"></div>
+    <button class="btn-primary" style="width:100%;margin-top:12px;" onclick="saveQuizToLibrary()">Save Quiz</button>
   </div>
 </div>
 
@@ -492,6 +490,8 @@ const LS_CONFIG = "examFB_config_local";  // demo-only app config
 let db = null; // Firebase database handle when live
 
 function schoolKey(name){ return String(name||"").trim().replace(/[.#$/\[\]]/g,"_").slice(0,180) || "_"; }
+// Normalise a quiz's school assignment to an array (handles older single-school records).
+function quizSchools(q){ if(!q) return []; if(Array.isArray(q.schools)) return q.schools; if(q.school) return [q.school]; return []; }
 
 const Backend = {
   init(){
@@ -562,15 +562,22 @@ const Backend = {
     await this._part(runId).child(studentId).update({ surname, firstName, status:"submitted", lastSeen:this._now(), result, progress:null });
     return {ok:true};
   },
-  async saveQuiz(key, name, questions, school){
-    if(!this.live) return this._demo("saveQuiz", {key, name, questions, school});
-    await db.ref("quizzes/"+key).set({ name, questions, school:school||"", savedAt:Date.now() });
+  // Teacher dismisses a student's cheat alerts by setting a baseline = current alert count.
+  // Monitoring stays active; only alerts logged AFTER this baseline are counted/shown/exported.
+  async resetCheat(runId, studentId, baseline){
+    if(!this.live) return this._demo("resetCheat", {runId, studentId, baseline});
+    await this._part(runId).child(studentId).update({ cheatBaseline: baseline });
+    return {ok:true};
+  },
+  async saveQuiz(key, name, questions, schools){
+    if(!this.live) return this._demo("saveQuiz", {key, name, questions, schools});
+    await db.ref("quizzes/"+key).set({ name, questions, schools:schools||[], savedAt:Date.now() });
     return {ok:true};
   },
   async listQuizzes(){
     if(!this.live) return this._demo("listQuizzes", {});
     const val = (await db.ref("quizzes").once("value")).val() || {};
-    return { quizzes: Object.keys(val).map(k=>({ key:k, name:val[k].name, school:val[k].school||"", count:(val[k].questions||[]).length })) };
+    return { quizzes: Object.keys(val).map(k=>({ key:k, name:val[k].name, schools:quizSchools(val[k]), count:(val[k].questions||[]).length })) };
   },
   async getQuiz(key){
     if(!this.live) return this._demo("getQuiz", {key});
@@ -677,8 +684,11 @@ const Backend = {
       case "submitResult":
         upsertPart(p.runId,p.studentId,{surname:p.surname,firstName:p.firstName,status:"submitted",lastSeen:Date.now(),result:p.result,progress:null});
         this._save(s); return {ok:true};
-      case "saveQuiz": { const q=this._quizzes(); q[p.key]={name:p.name,questions:p.questions,school:p.school||"",savedAt:Date.now()}; this._saveQuizzes(q); return {ok:true}; }
-      case "listQuizzes": { const q=this._quizzes(); return { quizzes: Object.keys(q).map(k=>({key:k,name:q[k].name,school:q[k].school||"",count:(q[k].questions||[]).length})) }; }
+      case "resetCheat":
+        upsertPart(p.runId,p.studentId,{cheatBaseline:p.baseline});
+        this._save(s); return {ok:true};
+      case "saveQuiz": { const q=this._quizzes(); q[p.key]={name:p.name,questions:p.questions,schools:p.schools||[],savedAt:Date.now()}; this._saveQuizzes(q); return {ok:true}; }
+      case "listQuizzes": { const q=this._quizzes(); return { quizzes: Object.keys(q).map(k=>({key:k,name:q[k].name,schools:quizSchools(q[k]),count:(q[k].questions||[]).length})) }; }
       case "getQuiz": { const q=this._quizzes(); return q[p.key]||null; }
       case "deleteQuiz": { const q=this._quizzes(); delete q[p.key]; this._saveQuizzes(q); return {ok:true}; }
       case "listSchools": { return { schools: this._schools() }; }
@@ -713,7 +723,7 @@ function openAdmin(){
   showScreen("screen-admin");
   renderQBank();
   loadQuizList();       // fills the admin's quiz-library-select
-  renderSchools();      // fills the schools list + the quiz-school-select
+  renderSchools();      // fills the schools list + the quiz school checkboxes
   document.getElementById("archive-status").textContent = "";
 }
 // Manual retention: download a JSON backup of every run older than 6 months, then delete them.
@@ -763,11 +773,29 @@ async function renderSchools(){
     btn.onclick=()=>removeSchoolUI(name);
     div.appendChild(btn); list.appendChild(div);
   });
-  // Populate the "assign to school" dropdown (preserve current selection if still valid)
-  const sel=document.getElementById("quiz-school-select"); const cur=sel.value;
-  sel.innerHTML='<option value="">— select a school —</option>';
-  schools.forEach(n=>{ const o=document.createElement("option"); o.value=n; o.textContent=n; sel.appendChild(o); });
-  if(schools.includes(cur)) sel.value=cur;
+  // Populate the "assign to school(s)" checkbox list (preserve current ticks if still valid)
+  const already = getCheckedSchools();
+  renderSchoolChecks(schools, already);
+}
+// Render the multi-select school checkboxes; keep any names in `checked` ticked.
+function renderSchoolChecks(schools, checked){
+  const box=document.getElementById("quiz-school-checks"); if(!box) return;
+  const set=new Set(checked||[]);
+  box.innerHTML="";
+  if(!schools || schools.length===0){ box.innerHTML='<p class="sub" style="margin:0;">No schools yet — add one above first.</p>'; return; }
+  schools.forEach(n=>{
+    const row=document.createElement("label"); row.style.cssText="display:flex;align-items:center;gap:8px;padding:4px 0;font-weight:500;";
+    const cb=document.createElement("input"); cb.type="checkbox"; cb.value=n; cb.style.cssText="width:18px;height:18px;flex:0 0 auto;"; if(set.has(n)) cb.checked=true;
+    const span=document.createElement("span"); span.textContent=n;
+    row.appendChild(cb); row.appendChild(span); box.appendChild(row);
+  });
+}
+function getCheckedSchools(){
+  return [...document.querySelectorAll("#quiz-school-checks input[type=checkbox]:checked")].map(cb=>cb.value);
+}
+function setCheckedSchools(names){
+  const set=new Set(names||[]);
+  document.querySelectorAll("#quiz-school-checks input[type=checkbox]").forEach(cb=>{ cb.checked=set.has(cb.value); });
 }
 async function addSchoolUI(){
   const inp=document.getElementById("school-add-name"); const name=inp.value.trim();
@@ -850,7 +878,7 @@ function filterTeacherQuizzes(){
   document.getElementById("teacher-quiz-status").textContent = "No quiz loaded yet.";
   qSel.innerHTML = school ? '<option value="">— select a quiz —</option>' : '<option value="">— select a school first —</option>';
   if(!school) return;
-  TEACHER_QUIZZES.filter(q=>(q.school||"")===school).sort((a,b)=>a.name.localeCompare(b.name)).forEach(q=>{
+  TEACHER_QUIZZES.filter(q=>(q.schools||[]).includes(school)).sort((a,b)=>a.name.localeCompare(b.name)).forEach(q=>{
     const o=document.createElement("option"); o.value=q.key;
     o.textContent = q.name + " (" + q.count + " question" + (q.count===1?"":"s") + ")";
     qSel.appendChild(o);
@@ -864,7 +892,8 @@ async function loadQuizForTeacher(){
     const quiz = await Backend.getQuiz(key);
     if(!quiz){ status.textContent="That quiz could not be found."; TEACHER.questions=[]; return; }
     TEACHER.questions = (quiz.questions||[]).map(q=>Object.assign({},q,{id:q.id||"q_"+uid(6)}));
-    TEACHER.school = quiz.school || document.getElementById("teacher-school-select").value || "";
+    // The run is tagged with the school the teacher selected (a quiz may serve several schools).
+    TEACHER.school = document.getElementById("teacher-school-select").value || quizSchools(quiz)[0] || "";
     status.textContent = "Loaded: " + quiz.name + " — " + TEACHER.questions.length + " question(s). Ready to start.";
   }catch(e){ status.textContent="Load failed: "+e.message; }
 }
@@ -877,8 +906,9 @@ async function loadQuizList(){
     const sel = document.getElementById("quiz-library-select");
     sel.innerHTML = '<option value="">— select a saved quiz —</option>';
     (r.quizzes||[]).sort((a,b)=>a.name.localeCompare(b.name)).forEach(q=>{
+      const sc=(q.schools||[]).join(", ");
       const opt=document.createElement("option"); opt.value=q.key;
-      opt.textContent = q.name + (q.school?" · "+q.school:"") + " (" + q.count + " question" + (q.count===1?"":"s") + ")";
+      opt.textContent = q.name + (sc?" · "+sc:"") + " (" + q.count + " question" + (q.count===1?"":"s") + ")";
       sel.appendChild(opt);
     });
   }catch(e){ console.warn(e); }
@@ -887,24 +917,24 @@ async function loadQuizList(){
 function newQuiz(){
   TEACHER.questions = [];
   document.getElementById("quiz-save-name").value = "";
-  document.getElementById("quiz-school-select").value = "";
+  setCheckedSchools([]);
   renderQBank();
   showScreen("screen-admin-builder");
 }
 async function saveQuizToLibrary(){
   const name = document.getElementById("quiz-save-name").value.trim();
-  const school = document.getElementById("quiz-school-select").value;
+  const schools = getCheckedSchools();
   if(!name){ alert("Give the quiz a name first."); return; }
-  if(!school){ alert("Assign the quiz to a school (manage schools on the Quiz Bank page)."); return; }
+  if(schools.length===0){ alert("Tick at least one school to assign this quiz to (manage schools on the Quiz Bank page)."); return; }
   if(TEACHER.questions.length===0){ alert("Add or import some questions first."); return; }
   try{
-    await Backend.saveQuiz(quizKey(name+"__"+school), name, TEACHER.questions, school);
+    await Backend.saveQuiz(quizKey(name), name, TEACHER.questions, schools);
     loadQuizList();
-    alert('Saved "'+name+'" for '+school+' ('+TEACHER.questions.length+' questions).');
+    alert('Saved "'+name+'" for '+schools.join(", ")+' ('+TEACHER.questions.length+' questions).');
     showScreen("screen-admin");
   }catch(e){ alert("Save failed: "+e.message); }
 }
-// Load a saved quiz into the builder for editing, prefilling its name + school.
+// Load a saved quiz into the builder for editing, prefilling its name + assigned schools.
 async function loadQuizFromLibrary(){
   const key = document.getElementById("quiz-library-select").value;
   if(!key){ alert("Pick a saved quiz first."); return; }
@@ -914,8 +944,7 @@ async function loadQuizFromLibrary(){
     TEACHER.questions = (quiz.questions||[]).map(q=>Object.assign({},q,{id:q.id||"q_"+uid(6)}));
     renderQBank();
     document.getElementById("quiz-save-name").value = quiz.name || "";
-    const sel = document.getElementById("quiz-school-select");
-    if(quiz.school && [...sel.options].some(o=>o.value===quiz.school)) sel.value = quiz.school;
+    setCheckedSchools(quizSchools(quiz));
     showScreen("screen-admin-builder");
   }catch(e){ alert("Load failed: "+e.message); }
 }
@@ -926,10 +955,10 @@ async function exportSavedQuiz(){
   try{
     const quiz = await Backend.getQuiz(key);
     if(!quiz){ alert("That quiz could not be found."); return; }
-    const payload = { name:quiz.name, school:quiz.school||"", questions:quiz.questions||[], exportedAt:new Date().toISOString() };
+    const payload = { name:quiz.name, schools:quizSchools(quiz), questions:quiz.questions||[], exportedAt:new Date().toISOString() };
     const blob = new Blob([JSON.stringify(payload,null,2)], {type:"application/json"});
     const a=document.createElement("a"); a.href=URL.createObjectURL(blob);
-    a.download = "quiz_" + quizKey((quiz.name||"quiz")+"__"+(quiz.school||"")) + ".json"; a.click();
+    a.download = "quiz_" + quizKey(quiz.name||"quiz") + ".json"; a.click();
   }catch(e){ alert("Export failed: "+e.message); }
 }
 async function deleteQuizFromLibrary(){
@@ -1270,22 +1299,47 @@ function startDashboardPolling(){
   });
 }
 function stopDashboardPolling(){ if(DASH_UNSUB){ DASH_UNSUB(); DASH_UNSUB=null; } }
+// A participant's raw logged alerts (from result if submitted, else live progress).
+function rawCheatAlerts(p){
+  if(p.result && p.result.cheatAlerts) return p.result.cheatAlerts;
+  if(p.progress && p.progress.cheatAlerts) return p.progress.cheatAlerts;
+  return [];
+}
+// Alerts that count = those logged AFTER the teacher's last reset (cheatBaseline).
+function effectiveCheatCount(p){ return Math.max(0, rawCheatAlerts(p).length - (p.cheatBaseline||0)); }
+
 function renderDashboardList(){
   document.getElementById("dash-student-count").textContent = DASH_PARTICIPANTS.length;
   const list=document.getElementById("dash-student-list"); list.innerHTML="";
   const now=Date.now();
   DASH_PARTICIPANTS.slice().sort(bySurname).forEach(p=>{
-    let status, alerts=0;
-    if(p.result){ status=Math.round(p.result.percentage)+"% ✓ done"; alerts=(p.result.cheatAlerts||[]).length; }
-    else {
-      alerts=(p.progress&&p.progress.cheatAlerts?p.progress.cheatAlerts.length:0);
-      const stale = p.lastSeen && (now-p.lastSeen>30000);
-      status = stale ? "⚠ disconnected (partial saved)" : "in progress";
-    }
+    let status;
+    if(p.result){ status=Math.round(p.result.percentage)+"% ✓ done"; }
+    else { const stale = p.lastSeen && (now-p.lastSeen>30000); status = stale ? "⚠ disconnected (partial saved)" : "in progress"; }
+    const alerts=effectiveCheatCount(p);
     const div=document.createElement("div"); div.className="student-row";
-    div.innerHTML='<span>'+displayName(p.surname,p.firstName)+'</span><span>'+status+'</span><span class="alert-count">'+(alerts>0?"⚠ "+alerts:"")+'</span>';
+    const nameEl=document.createElement("span"); nameEl.textContent=displayName(p.surname,p.firstName);
+    const statusEl=document.createElement("span"); statusEl.textContent=status;
+    const alertEl=document.createElement("span"); alertEl.className="alert-count"; alertEl.textContent = alerts>0 ? "⚠ "+alerts : "";
+    div.appendChild(nameEl); div.appendChild(statusEl); div.appendChild(alertEl);
+    if(alerts>0){
+      const btn=document.createElement("button"); btn.className="btn-outline";
+      btn.style.cssText="padding:4px 10px;flex:0 0 auto;min-height:0;";
+      btn.textContent="Reset"; btn.title="Clear these alerts — monitoring stays on";
+      btn.onclick=()=>resetCheatFor(p.studentId);
+      div.appendChild(btn);
+    }
     list.appendChild(div);
   });
+}
+// Teacher clears a student's alerts (e.g. an accidental tab-switch), keeping monitoring live.
+async function resetCheatFor(studentId){
+  const p=DASH_PARTICIPANTS.find(x=>x.studentId===studentId); if(!p) return;
+  if(!confirm("Clear "+displayName(p.surname,p.firstName)+"'s cheat alerts?\n\nMonitoring stays on, so any new alert will still appear.")) return;
+  const total=rawCheatAlerts(p).length;
+  try{ await Backend.resetCheat(TEACHER.runId, studentId, total); }
+  catch(e){ alert("Reset failed: "+e.message); return; }
+  p.cheatBaseline=total; renderDashboardList();  // reflect immediately (live listener will confirm)
 }
 async function teacherEndTest(){
   if(!confirm("End the test for all students now?")) return;
@@ -1319,12 +1373,17 @@ function startNewTestFromRecap(){
 /* Merge submitted results + progress fallback for disconnected students. Returns an array. */
 function buildEffectiveResults(participants, questions){
   return participants.map(p=>{
-    if(p.result){ return Object.assign({status:"Submitted", surname:p.surname, firstName:p.firstName}, p.result); }
+    const base=p.cheatBaseline||0;  // teacher-cleared alerts are dropped from reports too
+    if(p.result){
+      const r=Object.assign({status:"Submitted", surname:p.surname, firstName:p.firstName}, p.result);
+      r.cheatAlerts=(p.result.cheatAlerts||[]).slice(base);
+      return r;
+    }
     if(p.progress){
       const scored=scoreAnswers(questions, p.progress.order||[], p.progress.answers||{}, p.progress.timeSpent||{});
       return { surname:p.surname, firstName:p.firstName, status:"Incomplete (disconnected)",
         score:scored.score, totalPossible:scored.totalPossible, percentage:scored.percentage,
-        answers:scored.answerRows, cheatAlerts:p.progress.cheatAlerts||[], finishedAt:p.lastSeen };
+        answers:scored.answerRows, cheatAlerts:(p.progress.cheatAlerts||[]).slice(base), finishedAt:p.lastSeen };
     }
     return { surname:p.surname, firstName:p.firstName, status:"Joined (no answers)",
       score:0, totalPossible:0, percentage:0, answers:[], cheatAlerts:[], finishedAt:p.lastSeen };
@@ -1635,6 +1694,21 @@ function requestFS(el){
   if(fn){ try{ const r=fn.call(el); if(r&&r.catch) r.catch(()=>{}); }catch(e){} }
 }
 function inFullscreen(){ return !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement); }
+/* Extra monitoring: viewport-shrink (split-screen / overlay) and focus polling. */
+let _focusPoll=null, _lastFocus=true, _vpBaseH=0, _vpBaseW=0, _splitFlagged=false;
+function vpH(){ return (window.visualViewport&&window.visualViewport.height)||window.innerHeight||0; }
+function vpW(){ return (window.visualViewport&&window.visualViewport.width)||window.innerWidth||0; }
+function keyboardLikelyOpen(){ const a=document.activeElement; return !!(a&&(a.tagName==="INPUT"||a.tagName==="TEXTAREA")); }
+function onViewportResize(){
+  const h=vpH(), w=vpW();
+  // A big width change ~ device rotation: reset the baseline, don't flag it.
+  if(_vpBaseW && Math.abs(w-_vpBaseW) > _vpBaseW*0.2){ _vpBaseW=w; _vpBaseH=h; _splitFlagged=false; return; }
+  if(!_vpBaseH){ _vpBaseH=h; _vpBaseW=w; return; }
+  if(keyboardLikelyOpen()) return;              // on-screen keyboard shrinks the viewport — ignore
+  const shrink=(_vpBaseH-h)/_vpBaseH;
+  if(shrink>0.25){ if(!_splitFlagged){ _splitFlagged=true; logCheat("split_screen_or_overlay_suspected"); } }
+  else if(h>=_vpBaseH*0.95){ _splitFlagged=false; }  // back to full height — re-arm
+}
 let _securityOn=false;
 function enableSecurityMonitoring(){
   // Show the on-screen indicator so students know monitoring is active.
@@ -1648,10 +1722,22 @@ function enableSecurityMonitoring(){
   ["fullscreenchange","webkitfullscreenchange","mozfullscreenchange","MSFullscreenChange"].forEach(ev=>
     document.addEventListener(ev,()=>{ if(!inFullscreen()) logCheat("exited_fullscreen"); }));
   document.addEventListener("visibilitychange",()=>{ if(document.hidden) logCheat("tab_switch_or_minimized"); });
-  window.addEventListener("blur",()=>logCheat("window_blur"));
   document.addEventListener("copy",e=>{ e.preventDefault(); logCheat("copy_attempt"); });
   document.addEventListener("paste",e=>{ e.preventDefault(); logCheat("paste_attempt"); });
   document.addEventListener("contextmenu",e=>{ e.preventDefault(); logCheat("right_click_attempt"); });
+  // Focus polling — catches an overlay/app that steals focus while the page stays visible
+  // (something the one-off blur event can miss on some mobile browsers).
+  _lastFocus = document.hasFocus ? document.hasFocus() : true;
+  _focusPoll = setInterval(()=>{
+    if(STUDENT.finished || STUDENT._suppressCheat) return;
+    const focused = document.hasFocus ? document.hasFocus() : true;
+    if(_lastFocus && !focused && !document.hidden) logCheat("focus_lost");
+    _lastFocus = focused;
+  }, 800);
+  // Viewport-shrink — catches split-screen / multi-window and some overlays. Baseline is taken
+  // shortly after the test opens; keyboard and rotation are guarded against in onViewportResize.
+  setTimeout(()=>{ _vpBaseH=vpH(); _vpBaseW=vpW(); }, 600);
+  (window.visualViewport || window).addEventListener("resize", onViewportResize);
 }
 
 /* Scoring (shared by student submit + teacher fallback) */
@@ -1695,6 +1781,8 @@ async function studentSubmitTest(auto){
   if(STUDENT.timerInterval) clearInterval(STUDENT.timerInterval);
   if(STUDENT.checkpointInterval) clearInterval(STUDENT.checkpointInterval);
   clearQuestionTimer();
+  if(_focusPoll){ clearInterval(_focusPoll); _focusPoll=null; }
+  (window.visualViewport || window).removeEventListener("resize", onViewportResize);
   if(STUDENT.questionStartTs!==null){
     const elapsed=(Date.now()-STUDENT.questionStartTs)/1000;
     STUDENT.timeSpent[STUDENT.currentPos]=(STUDENT.timeSpent[STUDENT.currentPos]||0)+elapsed;
