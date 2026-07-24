@@ -1719,6 +1719,15 @@ function onViewportResize(){
     else if(h>=_vpBaseH*0.95){ _splitFlagged=false; }  // returned to full height — re-arm
   }, VP_SETTLE_MS);
 }
+// A system gesture (e.g. swiping down the notification shade / pulling up an assistant) can
+// interrupt an in-progress touch on the page, firing touch/pointer-cancel. Throttled so one
+// gesture logs at most one alert.
+let _lastGestureAt=0;
+function logGestureInterrupt(){
+  if(STUDENT.finished || STUDENT._suppressCheat) return;
+  const now=Date.now(); if(now-_lastGestureAt < 1500) return; _lastGestureAt=now;
+  logCheat("system_gesture_interrupt");
+}
 let _securityOn=false;
 function enableSecurityMonitoring(){
   // Show the on-screen indicator so students know monitoring is active.
@@ -1735,6 +1744,11 @@ function enableSecurityMonitoring(){
   document.addEventListener("copy",e=>{ e.preventDefault(); logCheat("copy_attempt"); });
   document.addEventListener("paste",e=>{ e.preventDefault(); logCheat("paste_attempt"); });
   document.addEventListener("contextmenu",e=>{ e.preventDefault(); logCheat("right_click_attempt"); });
+  // System-gesture interrupt (notification shade / assistant pull cancels an in-progress touch).
+  document.addEventListener("touchcancel", logGestureInterrupt, {passive:true});
+  document.addEventListener("pointercancel", logGestureInterrupt, {passive:true});
+  // Page Lifecycle: the OS froze/suspended this tab (e.g. backgrounded for another app).
+  document.addEventListener("freeze", ()=>logCheat("tab_frozen"));
   // Focus polling — catches an overlay/app that steals focus while the page stays visible.
   // Requires focus to be lost for ~2.4s continuously, so a normal tap (which at most causes a
   // momentary blip that recovers immediately) never triggers it.
