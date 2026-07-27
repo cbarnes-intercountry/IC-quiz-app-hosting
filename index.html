@@ -435,6 +435,15 @@
   </div>
 </div>
 
+<!-- RETURN-TO-FULLSCREEN OVERLAY (shown to students if full screen is lost mid-test) -->
+<div id="fs-overlay" style="display:none;position:fixed;inset:0;background:rgba(26,29,41,.96);z-index:2000;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;">
+  <div style="background:#fff;border-radius:16px;padding:28px 24px;max-width:420px;width:100%;">
+    <h2 style="margin:0 0 8px;">Full screen required</h2>
+    <p class="sub" style="margin-bottom:18px;">Your test must run in full screen. Tap the button to continue — your answers are safe.</p>
+    <button class="btn-primary" style="width:100%;font-size:1.15rem;" onclick="resumeFullscreen()">Return to Full Screen</button>
+  </div>
+</div>
+
 <!-- FULLSCREEN QR OVERLAY -->
 <div id="qr-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:1000;flex-direction:column;align-items:center;justify-content:center;padding:20px;" onclick="closeQRFullscreen()">
   <div style="background:#fff;padding:26px;border-radius:16px;text-align:center;max-width:92vw;" onclick="event.stopPropagation()">
@@ -1703,7 +1712,7 @@ function keyboardLikelyOpen(){ const a=document.activeElement; return !!(a&&(a.t
 // opening/closing (a brief, self-correcting animation) and rotation don't cause false alarms.
 // Threshold is deliberately low (18%): a soft keyboard raised for an OVERLAY shrinks the page
 // while none of our own answer fields are focused — the tell-tale of "typing somewhere else".
-const VP_SHRINK_THRESHOLD = 0.18;
+const VP_SHRINK_THRESHOLD = 0.25;
 const VP_SETTLE_MS = 700;   // long enough to clear a keyboard-close animation, short enough to catch brief overlay use
 function onViewportResize(){
   const w=vpW();
@@ -1719,34 +1728,59 @@ function onViewportResize(){
     else if(h>=_vpBaseH*0.95){ _splitFlagged=false; }  // returned to full height — re-arm
   }, VP_SETTLE_MS);
 }
-// A system gesture (e.g. swiping down the notification shade / pulling up an assistant) can
-// interrupt an in-progress touch on the page, firing touch/pointer-cancel. Throttled so one
-// gesture logs at most one alert.
-let _lastGestureAt=0;
-function logGestureInterrupt(){
-  if(STUDENT.finished || STUDENT._suppressCheat) return;
-  const now=Date.now(); if(now-_lastGestureAt < 1500) return; _lastGestureAt=now;
-  logCheat("system_gesture_interrupt");
+/* Full-screen recovery: if the student drops out of full screen mid-test we show a blocking
+   overlay. Their tap on it is the user gesture browsers require to re-enter full screen, so
+   an accidental exit is self-correcting. A genuine exit is still logged once, after a short
+   grace period so a momentary flicker (common when tapping on Android) isn't counted. */
+let _fsGraceTimer=null, _fsSupported=false;
+function fullscreenAvailable(){
+  const el=document.documentElement;
+  return !!(el.requestFullscreen||el.webkitRequestFullscreen||el.mozRequestFullScreen||el.msRequestFullscreen);
+}
+function showFSOverlay(){
+  const o=document.getElementById("fs-overlay"); if(!o) return;
+  o.style.display="flex";
+  STUDENT._suppressCheat=true;   // don't stack other alerts while they're getting back in
+}
+function hideFSOverlay(){
+  const o=document.getElementById("fs-overlay"); if(o) o.style.display="none";
+  STUDENT._suppressCheat=false;
+}
+function resumeFullscreen(){
+  requestFS(document.documentElement);   // called from the overlay tap = valid user gesture
+  hideFSOverlay();
+  // Re-baseline the viewport once the screen settles, so the change doesn't read as a shrink.
+  setTimeout(()=>{ _vpBaseH=vpH(); _vpBaseW=vpW(); _splitFlagged=false; }, 800);
+}
+function onFullscreenChange(){
+  if(STUDENT.finished || !STUDENT.testStarted) return;
+  if(inFullscreen()){ clearTimeout(_fsGraceTimer); hideFSOverlay(); return; }
+  clearTimeout(_fsGraceTimer);
+  _fsGraceTimer=setTimeout(()=>{
+    if(STUDENT.finished || inFullscreen()) return;   // came back on its own — ignore
+    logCheat("exited_fullscreen");                    // genuine exit: log once...
+    showFSOverlay();                                  // ...and ask them to return
+  }, 1500);
 }
 let _securityOn=false;
 function enableSecurityMonitoring(){
   // Show the on-screen indicator so students know monitoring is active.
   const badge=document.getElementById("test-monitored"); if(badge) badge.style.display="inline-block";
   // Try to enter full screen. This works because enableSecurityMonitoring is reached from the
-  // student's "Start Your Test" tap (a user gesture). Note: iOS Safari does not support full
-  // screen on a web page, so on iPhones the test runs windowed — the other checks still apply.
+  // student's "Start Your Test" tap (a user gesture). Note: iOS Safari does not support web
+  // full screen, so on iPhones the test runs windowed and we skip the recovery overlay.
+  _fsSupported = fullscreenAvailable();
   requestFS(document.documentElement);
   if(_securityOn) return; // attach listeners only once
   _securityOn=true;
-  ["fullscreenchange","webkitfullscreenchange","mozfullscreenchange","MSFullscreenChange"].forEach(ev=>
-    document.addEventListener(ev,()=>{ if(!inFullscreen()) logCheat("exited_fullscreen"); }));
+  if(_fsSupported){
+    ["fullscreenchange","webkitfullscreenchange","mozfullscreenchange","MSFullscreenChange"].forEach(ev=>
+      document.addEventListener(ev, onFullscreenChange));
+  }
   document.addEventListener("visibilitychange",()=>{ if(document.hidden) logCheat("tab_switch_or_minimized"); });
   document.addEventListener("copy",e=>{ e.preventDefault(); logCheat("copy_attempt"); });
   document.addEventListener("paste",e=>{ e.preventDefault(); logCheat("paste_attempt"); });
   document.addEventListener("contextmenu",e=>{ e.preventDefault(); logCheat("right_click_attempt"); });
-  // System-gesture interrupt (notification shade / assistant pull cancels an in-progress touch).
-  document.addEventListener("touchcancel", logGestureInterrupt, {passive:true});
-  document.addEventListener("pointercancel", logGestureInterrupt, {passive:true});
   // Page Lifecycle: the OS froze/suspended this tab (e.g. backgrounded for another app).
   document.addEventListener("freeze", ()=>logCheat("tab_frozen"));
   // Focus polling — catches an overlay/app that steals focus while the page stays visible.
@@ -1808,6 +1842,8 @@ async function studentSubmitTest(auto){
   clearQuestionTimer();
   if(_focusPoll){ clearInterval(_focusPoll); _focusPoll=null; }
   if(_vpTimer){ clearTimeout(_vpTimer); _vpTimer=null; }
+  if(_fsGraceTimer){ clearTimeout(_fsGraceTimer); _fsGraceTimer=null; }
+  hideFSOverlay();
   (window.visualViewport || window).removeEventListener("resize", onViewportResize);
   if(STUDENT.questionStartTs!==null){
     const elapsed=(Date.now()-STUDENT.questionStartTs)/1000;
