@@ -342,6 +342,8 @@
         <span class="badge" id="dash-current-q" style="align-self:center;">Q 1</span>
         <button class="btn-primary" onclick="pacedAdvance(1)">Next &rarr;</button>
       </div>
+      <button class="btn-secondary" id="dash-pause-btn" style="width:100%;margin-top:12px;display:none;" onclick="teacherTogglePause()">&#9208; Pause Timers</button>
+      <small class="hint" id="dash-pause-note" style="display:none;">Freezes the overall and per-question timers for everyone. Students see a "paused" screen and can't answer until you resume.</small>
       <button class="btn-danger" style="width:100%;margin-top:12px;" onclick="teacherEndTest()">End Test for Everyone</button>
     </div>
   </div>
@@ -432,6 +434,14 @@
     <p style="font-size:2.4rem;margin:10px 0;font-weight:800;" id="fb-score"></p>
     <p class="sub" id="fb-percentage" style="font-size:1.3rem;"></p>
     <p class="sub">Thanks, <span id="fb-name"></span>! You may close this window.</p>
+  </div>
+</div>
+
+<!-- TEST PAUSED OVERLAY (teacher has frozen the timers) -->
+<div id="pause-overlay" style="display:none;position:fixed;inset:0;background:rgba(26,29,41,.96);z-index:1900;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;">
+  <div style="background:#fff;border-radius:16px;padding:28px 24px;max-width:420px;width:100%;">
+    <h2 style="margin:0 0 8px;">&#9208; Test paused</h2>
+    <p class="sub" style="margin:0;">Your teacher has paused the test. The timer is stopped and your answers are saved. Please wait — the test will continue shortly.</p>
   </div>
 </div>
 
@@ -1234,8 +1244,25 @@ async function teacherBeginQuiz(){
     ? "Paced mode: use Next/Previous to move the whole class together."
     : "Free navigation: students move at their own pace.";
   document.getElementById("dash-pace-controls").style.display = TEACHER.settings.paced?"flex":"none";
+  // Offer the pause control only when there is actually a timer to freeze.
+  const hasTimers = (TEACHER.settings.timeLimitMin>0) || TEACHER.questions.some(q=>(q.timeLimitSec||0)>0);
+  document.getElementById("dash-pause-btn").style.display = hasTimers?"block":"none";
+  document.getElementById("dash-pause-note").style.display = hasTimers?"block":"none";
   document.getElementById("dash-lobby").style.display="none";
   document.getElementById("dash-running").style.display="block";
+}
+// Freeze / unfreeze every student's timers.
+async function teacherTogglePause(){
+  const paused = !TEACHER.settings.paused;
+  TEACHER.settings.paused = paused;
+  try{ await Backend.updateMeta(TEACHER.runId, TEACHER.settings); }
+  catch(e){ TEACHER.settings.paused=!paused; alert("Couldn't "+(paused?"pause":"resume")+": "+e.message); return; }
+  const btn=document.getElementById("dash-pause-btn");
+  btn.innerHTML = paused ? "&#9654; Resume Test" : "&#9208; Pause Timers";
+  btn.className = paused ? "btn-primary" : "btn-secondary";
+  document.getElementById("dash-pause-note").textContent = paused
+    ? "Test is paused — students see a waiting screen and their timers are frozen."
+    : "Freezes the overall and per-question timers for everyone. Students see a \"paused\" screen and can't answer until you resume.";
 }
 function getJoinUrl(){ return location.origin+location.pathname+"?join="+encodeURIComponent(TEACHER.sessionCode); }
 function renderJoinQR(){
@@ -1520,8 +1547,10 @@ function startStudentStatusPolling(){
     }
     // End the test for students who are taking it.
     if(meta.status==="ended" && STUDENT.testStarted && !STUDENT.finished){ studentSubmitTest(true); }
-    // Follow paced navigation once the student is actually in the test.
-    if(meta.status==="active" && meta.paced && STUDENT.testStarted){
+    // Teacher pause/resume of the timers.
+    if(STUDENT.testStarted && !STUDENT.finished) applyPauseState(!!meta.paused);
+    // Follow paced navigation once the student is actually in the test (ignored while paused).
+    if(meta.status==="active" && meta.paced && STUDENT.testStarted && !STUDENT.isPaused){
       const idx=meta.currentIndex||0; if(idx!==STUDENT.currentPos) goToQuestion(idx);
     }
   });
@@ -1574,6 +1603,48 @@ function goToQuestion(pos){
   renderCurrentQuestion();
 }
 function clearQuestionTimer(){ if(STUDENT.qTimerInterval){ clearInterval(STUDENT.qTimerInterval); STUDENT.qTimerInterval=null; } }
+
+/* ---- Teacher-controlled pause: freeze both timers and block answering ---- */
+function applyPauseState(paused){
+  if(paused && !STUDENT.isPaused) pauseStudent();
+  else if(!paused && STUDENT.isPaused) resumeStudent();
+}
+function pauseStudent(){
+  STUDENT.isPaused=true;
+  // Bank the time spent so far on this question, then stop counting.
+  if(STUDENT.questionStartTs!==null){
+    STUDENT.timeSpent[STUDENT.currentPos]=(STUDENT.timeSpent[STUDENT.currentPos]||0)+(Date.now()-STUDENT.questionStartTs)/1000;
+    STUDENT.questionStartTs=null;
+  }
+  // Remember what was left on each timer, then stop them.
+  STUDENT._pausedOverallMs = STUDENT.deadline ? Math.max(0, STUDENT.deadline-Date.now()) : null;
+  const qd = STUDENT.qDeadlines && STUDENT.qDeadlines[STUDENT.currentPos];
+  STUDENT._pausedQuestionMs = qd ? Math.max(0, qd-Date.now()) : null;
+  if(STUDENT.timerInterval){ clearInterval(STUDENT.timerInterval); STUDENT.timerInterval=null; }
+  clearQuestionTimer();
+  const o=document.getElementById("pause-overlay"); if(o) o.style.display="flex";
+  STUDENT._suppressCheat=true;          // don't log alerts while they're waiting
+  syncProgress(true);                   // save answers at the moment of pause
+}
+function resumeStudent(){
+  STUDENT.isPaused=false;
+  const o=document.getElementById("pause-overlay"); if(o) o.style.display="none";
+  STUDENT._suppressCheat=false;
+  STUDENT.questionStartTs=Date.now();
+  // Restore each timer with exactly the time that was left.
+  if(STUDENT._pausedOverallMs!==null && STUDENT._pausedOverallMs!==undefined){
+    STUDENT.deadline = Date.now()+STUDENT._pausedOverallMs;
+    STUDENT.timerInterval = setInterval(updateOverallTimer,500);
+    STUDENT._pausedOverallMs=null;
+  }
+  if(STUDENT._pausedQuestionMs!==null && STUDENT._pausedQuestionMs!==undefined){
+    STUDENT.qDeadlines[STUDENT.currentPos] = Date.now()+STUDENT._pausedQuestionMs;
+    STUDENT._pausedQuestionMs=null;
+  }
+  // Re-baseline the viewport (screen may have shifted) and restart the question countdown.
+  _vpBaseH=vpH(); _vpBaseW=vpW(); _splitFlagged=false;
+  renderCurrentQuestion();
+}
 let _syncTimer=null, _syncPending=false;
 function syncProgress(immediate){
   if(STUDENT.finished||!STUDENT.sessionCode) return;
@@ -1658,7 +1729,7 @@ function moveOrderItem(pos,idx,dir){
 function setupQuestionTimer(pos, q, locked){
   clearQuestionTimer();
   const pill=document.getElementById("q-timer");
-  if(STUDENT.paced || !q.timeLimitSec || q.timeLimitSec<=0 || locked){ pill.style.display="none"; return; }
+  if(STUDENT.paced || !q.timeLimitSec || q.timeLimitSec<=0 || locked || STUDENT.isPaused){ pill.style.display = STUDENT.isPaused?pill.style.display:"none"; return; }
   if(!STUDENT.qDeadlines[pos]) STUDENT.qDeadlines[pos]=Date.now()+q.timeLimitSec*1000;
   pill.style.display="inline-block";
   const tick=()=>{
@@ -1762,6 +1833,8 @@ function onFullscreenChange(){
     showFSOverlay();                                  // ...and ask them to return
   }, 1500);
 }
+let _lastTouchAt=0;
+function _touchDevice(){ return ("ontouchstart" in window) || (navigator.maxTouchPoints>0); }
 let _securityOn=false;
 function enableSecurityMonitoring(){
   // Show the on-screen indicator so students know monitoring is active.
@@ -1780,7 +1853,15 @@ function enableSecurityMonitoring(){
   document.addEventListener("visibilitychange",()=>{ if(document.hidden) logCheat("tab_switch_or_minimized"); });
   document.addEventListener("copy",e=>{ e.preventDefault(); logCheat("copy_attempt"); });
   document.addEventListener("paste",e=>{ e.preventDefault(); logCheat("paste_attempt"); });
-  document.addEventListener("contextmenu",e=>{ e.preventDefault(); logCheat("right_click_attempt"); });
+  // Long-press on a touchscreen also fires "contextmenu". Block the menu either way, but only
+  // log it as an attempt for a genuine mouse right-click — otherwise every tap-and-hold on a
+  // phone would raise a false alert.
+  document.addEventListener("touchstart", ()=>{ _lastTouchAt=Date.now(); }, {passive:true});
+  document.addEventListener("contextmenu",e=>{
+    e.preventDefault();
+    const fromTouch = (e.pointerType==="touch") || (Date.now()-_lastTouchAt < 1500) || _touchDevice();
+    if(!fromTouch) logCheat("right_click_attempt");
+  });
   // Page Lifecycle: the OS froze/suspended this tab (e.g. backgrounded for another app).
   document.addEventListener("freeze", ()=>logCheat("tab_frozen"));
   // Focus polling — catches an overlay/app that steals focus while the page stays visible.
@@ -1822,6 +1903,7 @@ function scoreAnswers(questions, order, answers, timeSpent){
 }
 // Confirmation before a student submits manually (auto-submit on time-up/teacher-end skips this).
 function studentConfirmSubmit(){
+  if(STUDENT.isPaused){ alert("The test is paused by your teacher. Please wait."); return; }
   const total=STUDENT.order.length;
   const answered=STUDENT.order.filter((_,i)=>STUDENT.answers[i]!==undefined && STUDENT.answers[i]!=="").length;
   const unanswered=total-answered;
@@ -1844,6 +1926,8 @@ async function studentSubmitTest(auto){
   if(_vpTimer){ clearTimeout(_vpTimer); _vpTimer=null; }
   if(_fsGraceTimer){ clearTimeout(_fsGraceTimer); _fsGraceTimer=null; }
   hideFSOverlay();
+  STUDENT.isPaused=false;
+  const _po=document.getElementById("pause-overlay"); if(_po) _po.style.display="none";
   (window.visualViewport || window).removeEventListener("resize", onViewportResize);
   if(STUDENT.questionStartTs!==null){
     const elapsed=(Date.now()-STUDENT.questionStartTs)/1000;
