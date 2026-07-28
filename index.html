@@ -70,6 +70,9 @@
   .q-palette button.answered{background:var(--success-soft);border-color:var(--success);color:var(--success);}
   .q-palette button.current{background:var(--magenta);border-color:var(--ink);color:#fff;}
   .q-palette button.locked{background:var(--paper-2);color:var(--ink-soft);cursor:not-allowed;box-shadow:none;}
+  @keyframes qIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
+  .q-enter{animation:qIn .28s ease-out both;}
+  @media (prefers-reduced-motion:reduce){ .q-enter{animation:none !important;} }
   .option-btn{display:block;width:100%;text-align:left;background:#fff;border:2px solid var(--ink);border-radius:12px;padding:14px;margin-bottom:9px;font-size:1rem;font-weight:600;box-shadow:3px 3px 0 var(--ink);}
   .option-btn.selected{border-color:var(--magenta);background:var(--magenta-soft);color:var(--magenta);box-shadow:3px 3px 0 var(--magenta);}
   .qimg{max-width:100%;border:2px solid var(--ink);border-radius:12px;margin:10px 0;display:block;}
@@ -109,9 +112,42 @@
   .countdown.low .countdown-bar i{background:var(--amber);}
   .countdown.out .countdown-bar i{background:var(--magenta);}
   .countdown-note{font-size:.78rem;font-weight:700;margin-top:7px;line-height:1.4;}
+  /* Waiting room */
+  @keyframes waitPop{from{opacity:0;transform:translateY(10px);}to{opacity:1;transform:none;}}
+  @keyframes waitPulse{0%,100%{transform:scale(1);opacity:.9;}50%{transform:scale(1.5);opacity:.25;}}
+  @keyframes waitRing{0%{transform:scale(.65);opacity:.5;}100%{transform:scale(1.5);opacity:0;}}
+  @keyframes waitDot{0%,60%,100%{opacity:.2;}30%{opacity:1;}}
+  @keyframes ctaIn{from{opacity:0;transform:scale(.9);}to{opacity:1;transform:none;}}
+  @keyframes ctaNudge{0%,88%,100%{transform:none;}94%{transform:translateY(-3px);}}
+  .wait-card{overflow:hidden;}
+  .wait-pop{animation:waitPop .5s cubic-bezier(.2,.8,.2,1) both;}
+  .wait-d1{animation-delay:.1s;} .wait-d2{animation-delay:.2s;}
+  .wait-orb{position:relative;width:74px;height:74px;margin:2px auto 18px;display:grid;place-items:center;}
+  .wait-orb span{position:absolute;inset:0;border:2px solid var(--magenta);border-radius:50%;animation:waitRing 2.1s ease-out infinite;}
+  .wait-orb span:nth-child(2){animation-delay:.7s;}
+  .wait-orb span:nth-child(3){position:relative;inset:auto;width:16px;height:16px;background:var(--magenta);border:none;animation:waitPulse 2.1s ease-in-out infinite;}
+  .wait-dots{font-style:normal;letter-spacing:.08em;}
+  .wait-dots i{font-style:normal;animation:waitDot 1.4s infinite both;}
+  .wait-dots i:nth-child(2){animation-delay:.2s;} .wait-dots i:nth-child(3){animation-delay:.4s;}
+  .wait-cta{animation:ctaIn .35s cubic-bezier(.2,.9,.3,1.3) both, ctaNudge 3.4s 1s ease-in-out infinite;}
+  @media (prefers-reduced-motion:reduce){
+    .wait-pop,.wait-cta,.wait-orb span,.wait-dots i{animation:none !important;}
+  }
+
   /* Student results & feedback */
   #screen-student-feedback.active{padding:0;justify-content:stretch;}
   .fb-panel{background:var(--magenta);color:#fff;flex:1;width:100%;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:34px 22px 46px;}
+  @keyframes fbIn{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:none;}}
+  @keyframes fbDial{from{opacity:0;transform:scale(.72);}to{opacity:1;transform:none;}}
+  #screen-student-feedback.active .fb-pill{animation:fbIn .45s both;}
+  #screen-student-feedback.active .fb-dial{animation:fbDial .6s .1s cubic-bezier(.2,.9,.3,1.25) both;}
+  #screen-student-feedback.active .fb-title{animation:fbIn .5s .28s both;}
+  #screen-student-feedback.active .fb-sub{animation:fbIn .5s .36s both;}
+  #screen-student-feedback.active .fb-stat{animation:fbIn .5s both;}
+  #screen-student-feedback.active .fb-stat:nth-child(1){animation-delay:.44s;}
+  #screen-student-feedback.active .fb-stat:nth-child(2){animation-delay:.52s;}
+  #screen-student-feedback.active .fb-stat:nth-child(3){animation-delay:.6s;}
+  @media (prefers-reduced-motion:reduce){ #screen-student-feedback.active *{animation:none !important;} }
   .fb-pill{font-family:"Space Mono",monospace;font-weight:700;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;background:rgba(255,255,255,.15);border:2px solid #fff;border-radius:20px;padding:6px 16px;}
   .fb-dial{width:216px;height:216px;max-width:62vw;max-height:62vw;border:3px solid #fff;border-radius:50%;background:rgba(255,255,255,.1);box-shadow:0 0 0 10px rgba(255,255,255,.08);display:flex;flex-direction:column;align-items:center;justify-content:center;margin-top:26px;}
   .fb-pct{font-family:"Bricolage Grotesque",serif;font-weight:800;font-size:4.4rem;line-height:.9;letter-spacing:-.03em;}
@@ -267,11 +303,11 @@
 <!-- TEACHER SESSION -->
 <div class="screen" id="screen-teacher-login">
   <div class="top-nav">
-    <a class="linklike" onclick="showScreen('screen-role')">&larr; Home</a>
+    <a class="linklike" onclick="showScreen('screen-role')">&larr; Logout</a>
     <a class="linklike" title="Admin — quizzes &amp; schools" onclick="showScreen('screen-admin-password')" style="font-size:1.5rem;text-decoration:none;line-height:1;">&#9881;</a>
   </div>
   <div class="card">
-    <h1>Teacher — Session</h1>
+    <h1>Teacher — Home</h1>
     <p class="sub">Start a new session — a unique join code is generated automatically and shown once you pick a quiz.</p>
     <div class="stack" style="margin-top:16px;">
       <button class="btn-primary" onclick="teacherCreateSession()">New Session</button>
@@ -474,11 +510,12 @@
 
 <!-- STUDENT WAITING -->
 <div class="screen" id="screen-student-waiting">
-  <div class="card center">
-    <h1>You're in!</h1>
-    <p><b id="wait-name"></b> — session <b id="wait-code"></b></p>
-    <p class="sub" id="wait-status">Waiting for your teacher to start the test…</p>
-    <button class="btn-primary" id="wait-start-btn" style="display:none;width:100%;font-size:1.2rem;" onclick="studentBeginTest()">&#9654; Start Your Test</button>
+  <div class="card center wait-card">
+    <div class="wait-orb"><span></span><span></span><span></span></div>
+    <h1 class="wait-pop">You're in!</h1>
+    <p class="wait-pop wait-d1"><b id="wait-name"></b> — session <b id="wait-code"></b></p>
+    <p class="sub wait-pop wait-d2" id="wait-status">Waiting for your teacher to start the test<i class="wait-dots"><i>.</i><i>.</i><i>.</i></i></p>
+    <button class="btn-primary wait-cta" id="wait-start-btn" style="display:none;width:100%;font-size:1.2rem;" onclick="studentBeginTest()">&#9654; Start Your Test</button>
     <small class="hint" id="wait-start-hint" style="display:none;">Tap the button to begin. If your teacher enabled monitoring, the test opens in full screen.</small>
   </div>
 </div>
@@ -488,7 +525,6 @@
   <div class="top-nav">
     <span class="badge" id="test-progress">Question 1 of 10</span>
     <span>
-      <span class="badge" id="test-monitored" style="display:none;background:#fff2f0;color:var(--danger);">&#9679; Monitored</span>
       <span class="timer-pill" id="test-timer" style="display:none;">--:--</span>
     </span>
   </div>
@@ -1802,6 +1838,9 @@ function renderCurrentQuestion(){
   const locked=!!(STUDENT.qLocked&&STUDENT.qLocked[pos]);
   document.getElementById("test-progress").textContent="Question "+(pos+1)+" of "+STUDENT.order.length;
   document.getElementById("q-text-display").textContent=q.text;
+  // Replay the slide-in so each question feels like a new card.
+  const qcard=document.getElementById("q-text-display").parentElement;
+  qcard.classList.remove("q-enter"); void qcard.offsetWidth; qcard.classList.add("q-enter");
   const img=document.getElementById("q-img-display");
   if(q.image){ img.src=q.image; img.style.display="block"; } else img.style.display="none";
   const area=document.getElementById("q-answer-area");
@@ -1973,8 +2012,7 @@ let _lastTouchAt=0;
 function _touchDevice(){ return ("ontouchstart" in window) || (navigator.maxTouchPoints>0); }
 let _securityOn=false;
 function enableSecurityMonitoring(){
-  // Show the on-screen indicator so students know monitoring is active.
-  const badge=document.getElementById("test-monitored"); if(badge) badge.style.display="inline-block";
+  // (No on-screen badge: students are told about monitoring on the consent + waiting screens.)
   // Try to enter full screen. This works because enableSecurityMonitoring is reached from the
   // student's "Start Your Test" tap (a user gesture). Note: iOS Safari does not support web
   // full screen, so on iPhones the test runs windowed and we skip the recovery overlay.
