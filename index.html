@@ -10,78 +10,132 @@
 <!-- Firebase Realtime Database (compat SDK). Loaded from Google's CDN. -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --primary:#2454ff; --primary-dark:#1638b0; --danger:#e0334c; --success:#1a9c5c; --warn:#b8860b;
-    --bg:#f4f6fb; --card:#ffffff; --text:#1a1d29; --muted:#6b7280; --border:#e2e5ee;
+    --ink:#33333D; --ink-soft:#75757F; --paper:#EFE9DF; --paper-2:#E4DCCC; --surface:#ffffff;
+    --magenta:#EB0055; --magenta-dark:#c2004a; --magenta-soft:#FCE0EA;
+    --success:#0E8A4F; --success-soft:#DBF1E4; --amber:#B26B00; --amber-soft:#FBEBCF;
+    /* legacy aliases so older rules keep resolving */
+    --primary:#EB0055; --primary-dark:#c2004a; --danger:#EB0055; --warn:#B26B00;
+    --bg:#EFE9DF; --card:#ffffff; --text:#33333D; --muted:#75757F; --border:#33333D;
     color-scheme: light;
   }
   *{box-sizing:border-box;}
-  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;background:var(--bg);color:var(--text);}
-  .screen{display:none;min-height:100vh;padding:20px;}
+  body{margin:0;font-family:"Hanken Grotesk",system-ui,-apple-system,Segoe UI,sans-serif;background:var(--paper);color:var(--ink);-webkit-font-smoothing:antialiased;}
+  .screen{display:none;min-height:100vh;padding:22px 18px 40px;}
   .screen.active{display:flex;flex-direction:column;align-items:center;}
-  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:24px;width:100%;max-width:640px;box-shadow:0 2px 10px rgba(20,20,40,.04);}
-  h1{font-size:1.5rem;margin:0 0 4px;}
-  h2{font-size:1.2rem;margin:0 0 12px;}
-  p.sub{color:var(--muted);margin-top:0;}
-  label{display:block;font-weight:600;font-size:.9rem;margin:14px 0 6px;}
+  .card{background:var(--surface);border:2px solid var(--ink);border-radius:18px;padding:24px;width:100%;max-width:640px;box-shadow:5px 5px 0 var(--ink);}
+  h1{font-family:"Bricolage Grotesque",serif;font-weight:800;letter-spacing:-.02em;font-size:1.65rem;margin:0 0 6px;}
+  h2{font-family:"Bricolage Grotesque",serif;font-weight:800;letter-spacing:-.01em;font-size:1.3rem;margin:0 0 10px;}
+  p.sub{color:var(--ink-soft);margin-top:0;line-height:1.5;font-size:.95rem;}
+  label{display:block;font-weight:700;font-size:.85rem;margin:14px 0 6px;}
   input[type=text],input[type=password],input[type=number],select,textarea{
-    width:100%;padding:12px 14px;font-size:1rem;border:1.5px solid var(--border);border-radius:10px;background:#fff;color:var(--text);
+    width:100%;padding:12px 14px;font-size:1rem;font-family:inherit;border:2px solid var(--ink);border-radius:11px;background:#fff;color:var(--ink);
   }
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--magenta);box-shadow:0 0 0 3px var(--magenta-soft);}
   textarea{resize:vertical;min-height:70px;}
-  button{font-size:1rem;font-weight:600;border:none;border-radius:10px;padding:14px 20px;cursor:pointer;min-height:48px;transition:transform .05s ease;}
-  button:active{transform:scale(.98);}
-  .btn-primary{background:var(--primary);color:#fff;}
-  .btn-primary:hover{background:var(--primary-dark);}
-  .btn-secondary{background:#eef1f8;color:var(--text);}
-  .btn-danger{background:var(--danger);color:#fff;}
-  .btn-outline{background:transparent;border:1.5px solid var(--border);color:var(--text);}
+  button{font-size:1rem;font-family:inherit;font-weight:700;border:2px solid var(--ink);border-radius:12px;padding:13px 18px;cursor:pointer;min-height:48px;background:#fff;color:var(--ink);box-shadow:3px 3px 0 var(--ink);transition:transform .06s ease, box-shadow .06s ease;}
+  button:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink);}
+  .btn-primary{background:var(--magenta);color:#fff;}
+  .btn-primary:hover{background:var(--magenta-dark);}
+  .btn-secondary{background:var(--paper);color:var(--ink);}
+  .btn-danger{background:var(--ink);color:#fff;box-shadow:3px 3px 0 var(--magenta);}
+  .btn-outline{background:#fff;color:var(--ink);}
   .row{display:flex;gap:10px;flex-wrap:wrap;}
   .row > *{flex:1;}
   .center{text-align:center;}
   .stack{display:flex;flex-direction:column;gap:10px;width:100%;}
-  .top-nav{width:100%;max-width:640px;display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
-  .badge{display:inline-block;background:#eef1f8;color:var(--muted);border-radius:20px;padding:4px 12px;font-size:.8rem;font-weight:600;}
-  .badge.live{background:#e8f9ef;color:var(--success);}
-  .badge.demo{background:#fff4e0;color:var(--warn);}
-  .qbank-item{border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:8px;}
-  .qbank-item .qtxt{font-size:.9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .top-nav{width:100%;max-width:640px;display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px;}
+  .badge{display:inline-block;background:#fff;color:var(--ink);border:2px solid var(--ink);border-radius:20px;padding:4px 12px;font-family:"Space Mono",monospace;font-size:.72rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;}
+  .badge.live{background:var(--success-soft);border-color:var(--success);color:var(--success);}
+  .badge.demo{background:var(--amber-soft);border-color:var(--amber);color:var(--amber);}
+  .qbank-item{border:2px solid var(--ink);border-radius:12px;padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--paper);}
+  .qbank-item .qtxt{font-size:.9rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .qbank-item button{min-height:36px;padding:7px 11px;font-size:.8rem;box-shadow:2px 2px 0 var(--ink);}
   .opt-row{display:flex;gap:8px;align-items:center;margin-bottom:6px;}
   .opt-row input[type=text]{flex:1;}
-  .toggle-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);}
-  .switch{position:relative;width:46px;height:26px;flex-shrink:0;}
+  .opt-row button{min-height:40px;padding:8px 12px;font-size:.85rem;box-shadow:2px 2px 0 var(--ink);}
+  .toggle-row{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:11px 0;border-bottom:1.5px solid var(--paper-2);font-weight:600;font-size:.92rem;}
+  .switch{position:relative;width:48px;height:28px;flex-shrink:0;}
   .switch input{opacity:0;width:0;height:0;}
-  .slider{position:absolute;cursor:pointer;inset:0;background:#ccc;border-radius:26px;transition:.15s;}
-  .slider:before{content:"";position:absolute;height:20px;width:20px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.15s;}
-  input:checked + .slider{background:var(--primary);}
+  .slider{position:absolute;cursor:pointer;inset:0;background:var(--paper-2);border:2px solid var(--ink);border-radius:26px;transition:.15s;}
+  .slider:before{content:"";position:absolute;height:16px;width:16px;left:4px;top:4px;background:#fff;border:2px solid var(--ink);border-radius:50%;transition:.15s;}
+  input:checked + .slider{background:var(--magenta);}
   input:checked + .slider:before{transform:translateX(20px);}
-  .q-palette{display:grid;grid-template-columns:repeat(auto-fill,minmax(42px,1fr));gap:6px;margin:14px 0;}
-  .q-palette button{padding:0;height:42px;font-size:.9rem;background:#eef1f8;color:var(--text);}
-  .q-palette button.answered{background:#d7ecff;}
-  .q-palette button.current{background:var(--primary);color:#fff;}
-  .option-btn{display:block;width:100%;text-align:left;background:#fff;border:1.5px solid var(--border);border-radius:10px;padding:14px;margin-bottom:8px;font-size:1rem;font-weight:500;}
-  .option-btn.selected{border-color:var(--primary);background:#eef2ff;}
-  .qimg{max-width:100%;border-radius:10px;margin:10px 0;display:block;}
+  .q-palette{display:grid;grid-template-columns:repeat(auto-fill,minmax(44px,1fr));gap:6px;margin:14px 0;}
+  .q-palette button{padding:0;height:44px;font-family:"Space Mono",monospace;font-size:.85rem;background:#fff;color:var(--ink);box-shadow:2px 2px 0 var(--ink);border-radius:10px;}
+  .q-palette button.answered{background:var(--success-soft);border-color:var(--success);color:var(--success);}
+  .q-palette button.current{background:var(--magenta);border-color:var(--ink);color:#fff;}
+  .q-palette button.locked{background:var(--paper-2);color:var(--ink-soft);cursor:not-allowed;box-shadow:none;}
+  .option-btn{display:block;width:100%;text-align:left;background:#fff;border:2px solid var(--ink);border-radius:12px;padding:14px;margin-bottom:9px;font-size:1rem;font-weight:600;box-shadow:3px 3px 0 var(--ink);}
+  .option-btn.selected{border-color:var(--magenta);background:var(--magenta-soft);color:var(--magenta);box-shadow:3px 3px 0 var(--magenta);}
+  .qimg{max-width:100%;border:2px solid var(--ink);border-radius:12px;margin:10px 0;display:block;}
   .order-list{margin:6px 0;}
-  .order-item{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1.5px solid var(--border);border-radius:10px;margin-bottom:8px;background:#fff;font-size:1rem;font-weight:500;touch-action:manipulation;}
-  .order-item .grip{cursor:grab;color:var(--muted);font-size:1.2rem;line-height:1;user-select:none;}
+  .order-item{display:flex;align-items:center;gap:10px;padding:12px 14px;border:2px solid var(--ink);border-radius:12px;margin-bottom:8px;background:#fff;font-size:1rem;font-weight:600;box-shadow:3px 3px 0 var(--ink);touch-action:manipulation;}
+  .order-item .grip{cursor:grab;color:var(--ink-soft);font-size:1.2rem;line-height:1;user-select:none;}
   .order-item .ord-text{flex:1;}
   .order-item .ord-btns{display:flex;flex-direction:column;gap:2px;}
-  .order-item .ord-btns button{padding:2px 8px;min-height:0;height:22px;font-size:.8rem;background:#eef1f8;color:var(--text);}
+  .order-item .ord-btns button{padding:2px 8px;min-height:0;height:22px;font-size:.8rem;background:var(--paper);color:var(--ink);box-shadow:none;border-width:1.5px;border-radius:7px;}
   .order-item.sortable-ghost{opacity:.4;}
-  .order-item.sortable-chosen{border-color:var(--primary);}
-  .q-palette button.locked{background:#f0d0d0;color:#a33;cursor:not-allowed;}
+  .order-item.sortable-chosen{border-color:var(--magenta);box-shadow:3px 3px 0 var(--magenta);}
   .qe-answer-row{display:flex;gap:8px;align-items:center;margin-bottom:6px;}
   .qe-answer-row input[type=text]{flex:1;}
-  .timer-pill{font-variant-numeric:tabular-nums;font-weight:700;background:#fff2f0;color:var(--danger);border-radius:20px;padding:4px 12px;}
-  .student-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:.9rem;gap:8px;}
-  .alert-count{color:var(--danger);font-weight:700;}
-  small.hint{color:var(--muted);display:block;margin-top:4px;}
-  a.linklike{color:var(--primary);cursor:pointer;text-decoration:underline;font-weight:600;font-size:.9rem;}
-  .consent{display:flex;gap:10px;align-items:flex-start;margin-top:14px;font-size:.85rem;color:var(--muted);}
+  .qe-answer-row button{min-height:40px;padding:8px 12px;font-size:.85rem;box-shadow:2px 2px 0 var(--ink);}
+  .timer-pill{font-family:"Space Mono",monospace;font-variant-numeric:tabular-nums;font-weight:700;background:#fff;border:2px solid var(--ink);color:var(--ink);border-radius:20px;padding:4px 12px;}
+  .timer-pill.low{background:var(--amber-soft);border-color:var(--amber);color:var(--amber);}
+  .timer-pill.out{background:var(--magenta-soft);border-color:var(--magenta);color:var(--magenta);}
+  .student-row{display:flex;justify-content:space-between;align-items:center;padding:9px 10px;border-bottom:1.5px solid var(--paper-2);font-size:.9rem;gap:8px;}
+  .student-row.flagged{background:var(--magenta-soft);border-top:2px solid var(--magenta);border-bottom-color:var(--magenta);}
+  .alert-count{color:var(--magenta);font-weight:700;font-family:"Space Mono",monospace;}
+  small.hint{color:var(--ink-soft);display:block;margin-top:4px;line-height:1.45;}
+  a{color:var(--magenta);text-decoration:none;}
+  a:hover{color:var(--magenta-dark);}
+  a.linklike{color:var(--magenta);cursor:pointer;text-decoration:underline;font-weight:700;font-size:.9rem;}
+  .consent{display:flex;gap:10px;align-items:flex-start;margin-top:14px;font-size:.85rem;color:var(--ink-soft);line-height:1.45;}
   .consent input{margin-top:3px;width:18px;height:18px;flex-shrink:0;}
   .statusbar{width:100%;max-width:640px;margin-bottom:10px;font-size:.8rem;text-align:right;}
+  .mono{font-family:"Space Mono",monospace;}
+  /* Teacher live countdown */
+  .countdown{background:var(--paper);border:2px solid var(--ink);border-radius:12px;padding:12px 14px;margin:0 0 14px;}
+  .countdown-head{display:flex;justify-content:space-between;align-items:baseline;font-family:"Space Mono",monospace;font-size:.65rem;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:4px;}
+  .countdown-clock{font-family:"Space Mono",monospace;font-weight:700;font-size:1.75rem;line-height:1.1;font-variant-numeric:tabular-nums;}
+  .countdown.low .countdown-clock{color:var(--amber);}
+  .countdown.out .countdown-clock{color:var(--magenta);}
+  .countdown-bar{height:8px;border:2px solid var(--ink);border-radius:6px;background:#fff;overflow:hidden;margin-top:8px;}
+  .countdown-bar i{display:block;height:100%;background:var(--success);transition:width .9s linear;}
+  .countdown.low .countdown-bar i{background:var(--amber);}
+  .countdown.out .countdown-bar i{background:var(--magenta);}
+  .countdown-note{font-size:.78rem;font-weight:700;margin-top:7px;line-height:1.4;}
+  /* Recap score table */
+  .recap-table{border:2px solid var(--ink);border-radius:12px;overflow:hidden;margin-top:10px;}
+  .recap-head,.recap-row{display:grid;grid-template-columns:28px 1fr 76px 60px 52px;gap:10px;align-items:center;padding:9px 12px;}
+  .recap-head{background:var(--ink);color:#fff;font-family:"Space Mono",monospace;font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;}
+  .recap-row{border-top:1.5px solid var(--paper-2);font-size:.9rem;}
+  .recap-row:nth-child(even){background:var(--paper);}
+  .recap-row .rk{font-family:"Space Mono",monospace;font-size:.78rem;color:var(--ink-soft);}
+  .recap-row .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .recap-row .mk{font-family:"Space Mono",monospace;font-weight:700;font-size:.88rem;}
+  .recap-row .mk.pass{color:var(--success);}
+  .recap-row .mk.fail{color:var(--magenta);}
+  .recap-row .mk.none{color:var(--ink-soft);}
+  .recap-row .pc,.recap-row .al{text-align:right;font-family:"Space Mono",monospace;font-weight:700;font-size:.82rem;}
+  .recap-row .al.has{color:var(--magenta);}
+  @media (max-width:420px){
+    .recap-head,.recap-row{grid-template-columns:22px 1fr 66px 52px 40px;gap:7px;padding:8px 9px;font-size:.82rem;}
+  }
 </style>
+<template id="__bundler_thumbnail" data-bg-color="#EFE9DF">
+  <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+    <rect width="1200" height="800" fill="#EFE9DF"/>
+    <rect x="360" y="240" width="480" height="320" rx="28" fill="#ffffff" stroke="#33333D" stroke-width="10"/>
+    <rect x="420" y="310" width="240" height="20" rx="10" fill="#33333D"/>
+    <rect x="420" y="360" width="160" height="16" rx="8" fill="#75757F"/>
+    <rect x="420" y="430" width="360" height="60" rx="16" fill="#EB0055"/>
+  </svg>
+</template>
 </head>
 <body>
 
@@ -337,6 +391,12 @@
     </div>
     <div id="dash-running" style="display:none;">
       <p class="sub" id="dash-mode-note"></p>
+      <div class="countdown" id="dash-countdown" style="display:none;">
+        <div class="countdown-head"><span>Time remaining</span><span id="dash-cd-limit"></span></div>
+        <div class="countdown-clock" id="dash-cd-clock">--:--</div>
+        <div class="countdown-bar"><i id="dash-cd-bar" style="width:100%"></i></div>
+        <div class="countdown-note" id="dash-cd-note" style="display:none;"></div>
+      </div>
       <div class="row" id="dash-pace-controls">
         <button class="btn-secondary" onclick="pacedAdvance(-1)">&larr; Previous</button>
         <span class="badge" id="dash-current-q" style="align-self:center;">Q 1</span>
@@ -364,7 +424,12 @@
       <div class="card center" style="padding:14px;"><div style="font-size:1.6rem;font-weight:800;" id="recap-avg">0%</div><small class="hint">Average</small></div>
       <div class="card center" style="padding:14px;"><div style="font-size:1.6rem;font-weight:800;" id="recap-alerts">0</div><small class="hint">Cheat alerts</small></div>
     </div>
-    <div id="recap-list" style="margin-top:16px;"></div>
+    <h2 style="margin:20px 0 2px;">Student scores</h2>
+    <p class="sub" style="margin-bottom:0;">Ranked high to low. Students who hadn't submitted when you ended the test are marked incomplete.</p>
+    <div class="recap-table">
+      <div class="recap-head"><span>#</span><span>Student</span><span>Result</span><span style="text-align:right">%</span><span style="text-align:right">Alerts</span></div>
+      <div id="recap-list"></div>
+    </div>
   </div>
   <div class="card" style="margin-top:16px;">
     <div class="stack">
@@ -1250,6 +1315,41 @@ async function teacherBeginQuiz(){
   document.getElementById("dash-pause-note").style.display = hasTimers?"block":"none";
   document.getElementById("dash-lobby").style.display="none";
   document.getElementById("dash-running").style.display="block";
+  startTeacherCountdown();
+}
+
+/* ---- Teacher-side countdown (open navigation only — in paced mode the teacher drives the clock) ---- */
+let TEACHER_CD={ interval:null, remainSec:0, totalSec:0 };
+function startTeacherCountdown(){
+  stopTeacherCountdown();
+  const box=document.getElementById("dash-countdown");
+  const mins=Number(TEACHER.settings.timeLimitMin)||0;
+  if(TEACHER.settings.paced || mins<=0){ box.style.display="none"; return; }
+  TEACHER_CD.totalSec=mins*60; TEACHER_CD.remainSec=mins*60;
+  document.getElementById("dash-cd-limit").textContent=mins+" min";
+  box.style.display="block";
+  renderTeacherCountdown();
+  TEACHER_CD.interval=setInterval(()=>{
+    if(TEACHER.settings.paused){ renderTeacherCountdown(); return; }   // frozen with the students' timers
+    if(TEACHER_CD.remainSec>0) TEACHER_CD.remainSec--;
+    renderTeacherCountdown();
+  },1000);
+}
+function stopTeacherCountdown(){ if(TEACHER_CD.interval){ clearInterval(TEACHER_CD.interval); TEACHER_CD.interval=null; } }
+function renderTeacherCountdown(){
+  const box=document.getElementById("dash-countdown"); if(!box) return;
+  const left=TEACHER_CD.remainSec, low=left>0&&left<=300, out=left<=0;
+  box.className="countdown"+(out?" out":(low?" low":""));
+  document.getElementById("dash-cd-clock").textContent=fmtTime(left);
+  document.getElementById("dash-cd-bar").style.width=(TEACHER_CD.totalSec?Math.max(0,Math.min(100,left/TEACHER_CD.totalSec*100)):0)+"%";
+  const note=document.getElementById("dash-cd-note");
+  let txt="";
+  if(TEACHER.settings.paused) txt="Clock paused — students' timers are frozen too.";
+  else if(out) txt="Time is up — papers were auto-submitted. End the test to see the recap.";
+  else if(low) txt="Under 5 minutes remaining.";
+  note.textContent=txt;
+  note.style.color = out?"var(--magenta)":"var(--amber)";
+  note.style.display = txt?"block":"none";
 }
 // Freeze / unfreeze every student's timers.
 async function teacherTogglePause(){
@@ -1334,7 +1434,7 @@ function startDashboardPolling(){
     renderDashboardList();
   });
 }
-function stopDashboardPolling(){ if(DASH_UNSUB){ DASH_UNSUB(); DASH_UNSUB=null; } }
+function stopDashboardPolling(){ if(DASH_UNSUB){ DASH_UNSUB(); DASH_UNSUB=null; } stopTeacherCountdown(); }
 // A participant's raw logged alerts (from result if submitted, else live progress).
 function rawCheatAlerts(p){
   if(p.result && p.result.cheatAlerts) return p.result.cheatAlerts;
@@ -1348,12 +1448,18 @@ function renderDashboardList(){
   document.getElementById("dash-student-count").textContent = DASH_PARTICIPANTS.length;
   const list=document.getElementById("dash-student-list"); list.innerHTML="";
   const now=Date.now();
-  DASH_PARTICIPANTS.slice().sort(bySurname).forEach(p=>{
+  // Flagged students float to the top (most alerts first); everyone else stays alphabetical.
+  DASH_PARTICIPANTS.slice().sort((a,b)=>{
+    const aa=effectiveCheatCount(a), ab=effectiveCheatCount(b);
+    if((aa>0)!==(ab>0)) return aa>0?-1:1;
+    if(aa!==ab) return ab-aa;
+    return bySurname(a,b);
+  }).forEach(p=>{
     let status;
     if(p.result){ status=Math.round(p.result.percentage)+"% ✓ done"; }
     else { const stale = p.lastSeen && (now-p.lastSeen>30000); status = stale ? "⚠ disconnected (partial saved)" : "in progress"; }
     const alerts=effectiveCheatCount(p);
-    const div=document.createElement("div"); div.className="student-row";
+    const div=document.createElement("div"); div.className="student-row"+(alerts>0?" flagged":"");
     const nameEl=document.createElement("span"); nameEl.textContent=displayName(p.surname,p.firstName);
     const statusEl=document.createElement("span"); statusEl.textContent=status;
     const alertEl=document.createElement("span"); alertEl.className="alert-count"; alertEl.textContent = alerts>0 ? "⚠ "+alerts : "";
@@ -1392,9 +1498,16 @@ async function showTeacherRecap(){
   const eff=buildEffectiveResults(participants, TEACHER.questions);
   const list=document.getElementById("recap-list"); list.innerHTML="";
   let alertTotal=0, pctSum=0, scored=0;
-  eff.slice().sort(bySurname).forEach(r=>{ alertTotal+=(r.cheatAlerts||[]).length; pctSum+=r.percentage; scored++;
-    const div=document.createElement("div"); div.className="student-row";
-    div.innerHTML='<span>'+displayName(r.surname,r.firstName)+'</span><span>'+r.score+'/'+r.totalPossible+' ('+Math.round(r.percentage)+'%)'+(r.status&&r.status!=="Submitted"?" — "+r.status:"")+'</span>';
+  eff.slice().sort((a,b)=>b.percentage-a.percentage).forEach((r,i)=>{
+    alertTotal+=(r.cheatAlerts||[]).length; pctSum+=r.percentage; scored++;
+    const alerts=(r.cheatAlerts||[]).length, pass=r.percentage>=50, done=r.status==="Submitted";
+    const div=document.createElement("div"); div.className="recap-row";
+    div.innerHTML='<span class="rk">'+(i+1)+'</span>'
+      +'<span class="nm" title="'+escapeHtml(displayName(r.surname,r.firstName))+'">'+escapeHtml(displayName(r.surname,r.firstName))+'</span>'
+      +'<span class="mk '+(pass?"pass":"fail")+'">'+r.score+'/'+r.totalPossible+'</span>'
+      +'<span class="pc">'+Math.round(r.percentage)+'%</span>'
+      +'<span class="al'+(alerts>0?" has":"")+'">'+(alerts>0?alerts:"—")+'</span>'
+      +(done?"":'<span class="rk" style="grid-column:2/-1;color:var(--amber);font-weight:700;">'+escapeHtml(r.status||"Incomplete")+'</span>');
     list.appendChild(div); });
   document.getElementById("recap-count").textContent=eff.length;
   document.getElementById("recap-avg").textContent=scored?Math.round(pctSum/scored)+"%":"—";
