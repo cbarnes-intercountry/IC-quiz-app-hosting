@@ -4,9 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Classroom Exam App (Microsoft sign-in)</title>
-<!-- Microsoft Authentication Library (MSAL) — teacher sign-in via Entra ID.
-     Served from Microsoft's own CDN; swap for a cdnjs copy if your network policy requires it. -->
-<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
@@ -498,79 +495,51 @@ const TEACHER_PASSWORD = "changeme";
 const ADMIN_PASSWORD = "admin";
 
 /* =========================================================================
-   MICROSOFT ENTRA ID (MSAL) — teacher sign-in
-   Ask IT for an app registration of type "Single-page application" and paste
-   the two IDs below, with this page's URL as the registered Redirect URI.
+   MICROSOFT ENTRA ID sign-in for teachers
+   Uses Firebase Authentication's built-in Microsoft provider, so it works on the
+   free Firebase plan (a generic OpenID Connect provider would need Identity Platform).
+   Firebase performs the Microsoft sign-in and gives this browser a teacher identity
+   that the database rules can check. Students stay anonymous.
    ========================================================================= */
 const ENTRA = {
-  clientId: "057ef025-ab4f-486f-99e2-dbf7906df5f0",   // Entra → App registrations → Overview → Application (client) ID
-  tenantId: "9bcea58a-29e0-4ecb-a0f6-2ae1208b98bb",     // Entra → Overview → Tenant ID
-  // Optional: restrict access to one security group. Paste its Object ID to require membership.
-  // Needs the "groups" optional claim enabled on the app registration, or sign-in will be refused.
-  allowedGroupId: "",
-  // Optional extra guard: only allow these email domains (e.g. ["intercountry.com"]). Empty = any tenant member.
+  // Your Entra tenant — restricts sign-in to Intercountry accounts only.
+  tenantId: "9bcea58a-29e0-4ecb-a0f6-2ae1208b98bb",
+  // For reference: the Application (client) ID is configured in the Firebase console
+  // (Authentication -> Sign-in method -> Microsoft), not used directly by this page.
+  clientId: "057ef025-ab4f-486f-99e2-dbf7906df5f0",
+  // Optional guard: restrict to these email domains, e.g. ["intercountry.com"].
+  // Who may sign in is primarily controlled in Entra (Enterprise application -> Users and groups).
   allowedDomains: []
 };
-/* Firebase Authentication provider id for Entra, created in
-   Firebase console → Authentication → Sign-in method → Add new provider → OpenID Connect.
-   Give it the same Application (client) ID and issuer https://login.microsoftonline.com/<tenantId>/v2.0
-   This is what lets the database rules tell a teacher apart from a student. */
-const FIREBASE_OIDC_PROVIDER = "oidc.entra";
 
-/* Upgrade this browser's Firebase session from anonymous to the teacher's Microsoft identity,
-   reusing the ID token MSAL already obtained — so there is no second sign-in popup.
-   Returns true if the database now sees them as a teacher. */
-async function firebaseSignInWithEntra(idToken){
-  if(!Backend.live || typeof firebase==="undefined" || !firebase.auth || !idToken) return false;
-  try{
-    const provider = new firebase.auth.OAuthProvider(FIREBASE_OIDC_PROVIDER);
-    const cred = provider.credential({ idToken });
-    await firebase.auth().signInWithCredential(cred);
-    return true;
-  }catch(e){
-    console.warn("Firebase OIDC sign-in failed — teacher-level database access is not active:", e);
-    return false;
-  }
-}
+let TEACHER_USER = null;   // {name, email} once signed in
 function entraConfigured(){
-  return ENTRA.clientId.indexOf("PASTE_") === -1 && ENTRA.tenantId.indexOf("PASTE_") === -1 && typeof msal !== "undefined";
+  return Backend.live && typeof firebase!=="undefined" && !!firebase.auth
+      && ENTRA.tenantId.indexOf("PASTE_") === -1;
 }
-
-let MSAL_APP = null, TEACHER_USER = null;   // TEACHER_USER = {name, email} once signed in
-async function entraInit(){
-  if(!entraConfigured()) return false;
-  if(MSAL_APP) return true;
-  MSAL_APP = new msal.PublicClientApplication({
-    auth: {
-      clientId: ENTRA.clientId,
-      authority: "https://login.microsoftonline.com/" + ENTRA.tenantId,
-      redirectUri: location.origin + location.pathname
-    },
-    cache: { cacheLocation: "sessionStorage", storeAuthStateInCookie: false }
-  });
-  if(typeof MSAL_APP.initialize === "function") await MSAL_APP.initialize();  // MSAL v3+
-  return true;
+function microsoftProvider(){
+  const provider = new firebase.auth.OAuthProvider("microsoft.com");
+  // Lock sign-in to our tenant, and always let the teacher pick the account.
+  provider.setCustomParameters({ tenant: ENTRA.tenantId, prompt: "select_account" });
+  return provider;
 }
-// Check the signed-in account is allowed (group and/or domain), returning an error string or null.
-function entraCheckAllowed(account, claims){
-  const email = (account.username || "").toLowerCase();
+// Domain guard (Entra assignment is the real gate; this is a friendly extra check).
+function entraCheckAllowed(email){
+  const e=(email||"").toLowerCase();
   if(ENTRA.allowedDomains && ENTRA.allowedDomains.length){
-    const okDomain = ENTRA.allowedDomains.some(d=>email.endsWith("@"+String(d).toLowerCase()));
-    if(!okDomain) return "This account isn't permitted to run tests (" + email + ").";
-  }
-  if(ENTRA.allowedGroupId){
-    const groups = (claims && claims.groups) || [];
-    if(!Array.isArray(groups) || groups.length===0){
-      return "Group membership couldn't be verified. Ask IT to enable the \"groups\" optional claim on the app registration.";
-    }
-    if(!groups.includes(ENTRA.allowedGroupId)) return "Your account isn't in the group permitted to run tests.";
+    const ok = ENTRA.allowedDomains.some(d=>e.endsWith("@"+String(d).toLowerCase()));
+    if(!ok) return "This account isn't permitted to run tests ("+e+").";
   }
   return null;
 }
-function entraAcceptAccount(account, claims){
-  const problem = entraCheckAllowed(account, claims);
-  if(problem){ document.getElementById("signin-status").textContent = "✗ " + problem; return false; }
-  TEACHER_USER = { name: account.name || account.username, email: account.username || "" };
+function entraAcceptUser(user){
+  const problem = entraCheckAllowed(user.email);
+  if(problem){
+    document.getElementById("signin-status").textContent = "✗ " + problem;
+    try{ firebase.auth().signOut().then(()=>{ Backend._authReady = firebase.auth().signInAnonymously(); }); }catch(e){}
+    return false;
+  }
+  TEACHER_USER = { name: user.displayName || user.email || "Teacher", email: user.email || "" };
   const badge=document.getElementById("teacher-identity");
   if(badge){ badge.textContent = TEACHER_USER.name; badge.style.display="inline-block"; }
   const so=document.getElementById("signout-link"); if(so) so.style.display="inline";
@@ -578,25 +547,24 @@ function entraAcceptAccount(account, claims){
 }
 async function entraSignIn(){
   const status=document.getElementById("signin-status");
-  if(!await entraInit()){ status.textContent="Microsoft sign-in isn't configured yet — use the password below."; return; }
+  if(!entraConfigured()){ status.textContent="Microsoft sign-in isn't configured yet — use the password below."; return; }
   status.textContent="Opening Microsoft sign-in…";
   try{
-    const res = await MSAL_APP.loginPopup({ scopes:["User.Read"], prompt:"select_account" });
-    if(entraAcceptAccount(res.account, res.idTokenClaims)){
-      // Also give the database a teacher identity, so the rules grant teacher-level access.
-      const dbOk = await firebaseSignInWithEntra(res.idToken);
-      status.textContent = (Backend.live && !dbOk)
-        ? "Signed in, but teacher database access isn't active (ask IT to add the OpenID Connect provider in Firebase)."
-        : "";
+    const res = await firebase.auth().signInWithPopup(microsoftProvider());
+    if(entraAcceptUser(res.user)){
+      status.textContent="";
       showScreen("screen-teacher-login");
     }
   }catch(e){
-    // Popups can be blocked — fall back to a full-page redirect.
-    if(e && (e.errorCode==="popup_window_error" || e.errorCode==="empty_window_error")){
+    const code=(e && e.code)||"";
+    if(code==="auth/popup-blocked"){
       status.textContent="Popup blocked — redirecting to Microsoft sign-in…";
-      try{ await MSAL_APP.loginRedirect({ scopes:["User.Read"] }); }catch(e2){ status.textContent="✗ Sign-in failed: "+(e2.message||e2); }
-    } else if(e && e.errorCode==="user_cancelled"){
+      try{ await firebase.auth().signInWithRedirect(microsoftProvider()); }
+      catch(e2){ status.textContent="✗ Sign-in failed: "+((e2&&e2.message)||e2); }
+    } else if(code==="auth/popup-closed-by-user" || code==="auth/cancelled-popup-request"){
       status.textContent="Sign-in cancelled.";
+    } else if(code==="auth/operation-not-allowed"){
+      status.textContent="✗ Microsoft sign-in isn't enabled in Firebase yet (Authentication → Sign-in method → Microsoft).";
     } else {
       status.textContent="✗ Sign-in failed: "+((e&&e.message)||e);
     }
@@ -606,18 +574,14 @@ async function entraSignOut(){
   TEACHER_USER=null;
   const badge=document.getElementById("teacher-identity"); if(badge) badge.style.display="none";
   const so=document.getElementById("signout-link"); if(so) so.style.display="none";
-  // Drop teacher-level database access immediately, back to an anonymous session.
+  // Drop teacher-level database access straight away, back to an anonymous session.
   if(Backend.live && typeof firebase!=="undefined" && firebase.auth){
     try{ await firebase.auth().signOut(); Backend._authReady = firebase.auth().signInAnonymously(); }
     catch(e){ console.warn(e); }
   }
-  if(MSAL_APP){
-    const acct=MSAL_APP.getAllAccounts()[0];
-    try{ await MSAL_APP.logoutPopup({ account:acct }); }catch(e){ console.warn(e); }
-  }
   showScreen("screen-role");
 }
-// On load: show the right sign-in UI, and silently accept an account already cached this session.
+// On load: pick up a redirect sign-in, or recognise a teacher already signed in.
 async function entraBoot(){
   const ready=document.getElementById("signin-ready");
   const fallback=document.getElementById("signin-fallback");
@@ -625,23 +589,22 @@ async function entraBoot(){
   if(!entraConfigured()){
     if(ready) ready.style.display="none";
     if(fallback) fallback.style.display="block";
-    if(status) status.textContent="Microsoft sign-in isn't configured yet (see ENTRA in the page source). Using the fallback password.";
+    if(status) status.textContent="Microsoft sign-in isn't available (Firebase not configured). Using the fallback password.";
     return;
   }
-  await entraInit();
   try{
-    const redirectRes = await MSAL_APP.handleRedirectPromise();
-    if(redirectRes && redirectRes.account){
-      if(entraAcceptAccount(redirectRes.account, redirectRes.idTokenClaims)) showScreen("screen-teacher-login");
+    const res = await firebase.auth().getRedirectResult();
+    if(res && res.user){
+      if(entraAcceptUser(res.user)) showScreen("screen-teacher-login");
       return;
     }
   }catch(e){ console.warn(e); }
-  const accounts = MSAL_APP.getAllAccounts();
-  if(accounts.length){
-    // Already signed in this session — offer one tap to continue.
-    if(status) status.textContent="Signed in as "+(accounts[0].name||accounts[0].username)+".";
+  const u = firebase.auth().currentUser;
+  if(u && !u.isAnonymous){
+    if(status) status.textContent="Signed in as "+(u.displayName||u.email)+".";
     const btn=ready && ready.querySelector("button");
-    if(btn) btn.textContent="Continue as "+(accounts[0].name||accounts[0].username);
+    if(btn) btn.textContent="Continue as "+(u.displayName||u.email);
+    TEACHER_USER={ name:u.displayName||u.email, email:u.email||"" };
   }
 }
 
