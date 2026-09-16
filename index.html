@@ -182,6 +182,14 @@
   .pill.live i{width:8px;height:8px;flex:0 0 auto;border-radius:50%;background:var(--magenta);animation:pillFlash 2.4s ease-in-out infinite;}
   @keyframes pillFlash{0%,100%{opacity:1;}50%{opacity:.2;}}
   @media (prefers-reduced-motion:reduce){ .pill.live i{animation:none;} }
+  .prog{display:flex;height:7px;border:1.5px solid var(--ink);border-radius:5px;overflow:hidden;background:#fff;margin-top:5px;}
+  .prog i{display:block;height:100%;}
+  .prog i.ok{background:var(--success);}
+  .prog i.no{background:var(--magenta);}
+  .prog-num{display:block;font-family:"Space Mono",monospace;font-size:.6rem;letter-spacing:.04em;color:var(--ink-soft);margin-top:4px;}
+  .prog-num em{font-style:normal;font-weight:700;}
+  .prog-num em.ok{color:var(--success);}
+  .prog-num em.no{color:var(--magenta);}
   .dash-row .sc{text-align:right;font-family:"Space Mono",monospace;font-weight:700;font-size:.82rem;}
   .dash-row .ac{display:flex;justify-content:flex-end;}
   .btn-mini{min-height:0;padding:5px 11px;font-family:"Space Mono",monospace;font-size:.62rem;letter-spacing:.06em;box-shadow:2px 2px 0 var(--ink);}
@@ -253,6 +261,11 @@
   .recap-row .mk.none{color:var(--ink-soft);}
   .recap-row .pc,.recap-row .al{text-align:right;font-family:"Space Mono",monospace;font-weight:700;font-size:.82rem;}
   .recap-row .al.has{color:var(--magenta);}
+  .recap-head .sort{font:inherit;color:inherit;background:none;border:none;box-shadow:none;padding:0;min-height:0;cursor:pointer;display:inline-flex;align-items:center;gap:4px;letter-spacing:inherit;text-transform:inherit;}
+  .recap-head .sort:hover{color:var(--magenta-soft);}
+  .recap-head .sort b{font-weight:700;opacity:0;font-size:.7rem;line-height:1;}
+  .recap-head .sort.on b{opacity:1;}
+  .recap-head .sort.r{justify-content:flex-end;width:100%;}
   @media (max-width:420px){
     .recap-head,.recap-row{grid-template-columns:22px 1fr 66px 52px 40px;gap:7px;padding:8px 9px;font-size:.82rem;}
   }
@@ -377,15 +390,17 @@
           <div>
             <label>Image <small class="hint" style="display:inline;">&middot; optional</small></label>
             <input type="file" id="qe-image-file" accept="image/*" onchange="handleQMediaUpload(event,'image')">
-            <input type="text" id="qe-image-url" placeholder="…or paste a public link" style="margin-top:6px;">
+            <input type="hidden" id="qe-image-url">
             <img id="qe-image-preview" class="qimg" style="display:none;max-height:120px;">
+            <button class="btn-outline btn-mini" id="qe-image-clear" style="display:none;margin-top:8px;letter-spacing:.06em;" onclick="clearQMedia('image')">Remove image</button>
             <small id="qe-image-status" class="hint"></small>
           </div>
           <div>
             <label>Audio <small class="hint" style="display:inline;">&middot; optional</small></label>
             <input type="file" id="qe-audio-file" accept="audio/*" onchange="handleQMediaUpload(event,'audio')">
-            <input type="text" id="qe-audio-url" placeholder="…or paste a public link" style="margin-top:6px;">
+            <input type="hidden" id="qe-audio-url">
             <audio id="qe-audio-preview" controls style="display:none;margin-top:6px;"></audio>
+            <button class="btn-outline btn-mini" id="qe-audio-clear" style="display:none;margin-top:8px;letter-spacing:.06em;" onclick="clearQMedia('audio')">Remove audio</button>
             <small id="qe-audio-status" class="hint">Listening clips &mdash; keep under 10 MB.</small>
           </div>
         </div>
@@ -437,7 +452,7 @@
       <span class="badge">No live session</span>
     </span>
     <span class="nav-r">
-      <a class="icon-btn" title="Admin — quizzes &amp; schools" onclick="openAdmin()">&#9881;</a>
+      <a class="linklike" title="Admin — quizzes &amp; schools" onclick="openAdmin()">Admin</a>
       <a class="linklike" onclick="teacherSignOut()">Log out</a>
     </span>
   </div>
@@ -480,7 +495,8 @@
       <span class="badge" id="setup-session-code" style="display:none;"></span>
     </span>
     <span class="nav-r">
-      <a class="icon-btn" title="Admin — quizzes &amp; schools" onclick="openAdmin()">&#9881;</a>
+      <a class="linklike" onclick="teacherHome()">&larr; Home</a>
+      <a class="linklike" title="Admin — quizzes &amp; schools" onclick="openAdmin()">Admin</a>
       <a class="linklike" onclick="teacherSignOut()">Log out</a>
     </span>
   </div>
@@ -488,7 +504,6 @@
   <div class="card">
     <h1>New Session</h1>
     <p class="sub">Pick a quiz, confirm settings, then launch.</p>
-    <button class="btn-outline" style="padding:10px 14px;font-size:.85rem;min-height:0;" onclick="openHistory()">View past results instead</button>
   </div>
   <div class="duo-col">
   <div class="card">
@@ -537,7 +552,7 @@
       <span class="badge live live-dot"><i></i>LIVE &middot; <b id="dash-session-code"></b></span>
     </span>
     <span class="nav-r">
-      <a class="icon-btn" title="Admin — quizzes &amp; schools" onclick="openAdmin()">&#9881;</a>
+      <a class="linklike" title="Admin — quizzes &amp; schools" onclick="openAdmin()">Admin</a>
       <a class="linklike" onclick="teacherLeaveDashboard()">Log out</a>
     </span>
   </div>
@@ -608,7 +623,13 @@
     <h2 style="margin:20px 0 2px;">Student scores</h2>
     <p class="sub" style="margin-bottom:0;">Ranked high to low. Students who hadn't submitted when you ended the test are marked incomplete.</p>
     <div class="recap-table">
-      <div class="recap-head"><span>#</span><span>Student</span><span>Result</span><span style="text-align:right">%</span><span style="text-align:right">Alerts</span></div>
+      <div class="recap-head">
+        <span>#</span>
+        <span><button class="sort" id="sort-name" onclick="recapSortBy('name')">Student <b>&#9660;</b></button></span>
+        <span><button class="sort" id="sort-score" onclick="recapSortBy('score')">Result <b>&#9660;</b></button></span>
+        <span><button class="sort r" id="sort-pct" onclick="recapSortBy('pct')">% <b>&#9660;</b></button></span>
+        <span><button class="sort r" id="sort-alerts" onclick="recapSortBy('alerts')">Alerts <b>&#9660;</b></button></span>
+      </div>
       <div id="recap-list"></div>
     </div>
   </div>
@@ -1557,6 +1578,17 @@ function previewQMedia(kind,url){
     const au=document.getElementById("qe-audio-preview");
     if(au){ if(url){ au.src=url; au.style.display="block"; } else { au.removeAttribute("src"); au.style.display="none"; } }
   }
+  const clear=document.getElementById("qe-"+kind+"-clear");
+  if(clear) clear.style.display = url ? "inline-block" : "none";
+}
+// Detach media from this question. The uploaded file stays in the repo (other questions may
+// use it); the question simply stops pointing at it once saved.
+function clearQMedia(kind){
+  const box=document.getElementById("qe-"+kind+"-url"); if(box) box.value="";
+  const picker=document.getElementById("qe-"+kind+"-file"); if(picker) picker.value="";
+  previewQMedia(kind,"");
+  const status=document.getElementById("qe-"+kind+"-status");
+  if(status) status.textContent="Removed — save the question to confirm.";
 }
 
 /* ============ QUESTION BANK (edit-in-place editor) ============ */
@@ -1606,6 +1638,7 @@ function writeQuestionToForm(q){
   previewQMedia("image", q.image||"");
   previewQMedia("audio", q.audio||"");
   document.getElementById("qe-image-status").textContent = "";
+  document.getElementById("qe-audio-status").textContent = "Listening clips — keep under 10 MB.";
   document.getElementById("qe-points").value = (q.points!==undefined?q.points:1);
   document.getElementById("qe-qtime").value = q.timeLimitSec || 0;
   renderQEditorOptions(q);
@@ -2005,10 +2038,14 @@ function renderDashboardList(){
     av.textContent=((p.surname||"?")[0]+(p.firstName||"?")[0]).toUpperCase();
     const prog=participantProgress(p, TEACHER.questions);
     const nm=document.createElement("span"); nm.style.cssText="min-width:0;overflow:hidden;";
+    // Answered questions render as a green (right) / magenta (wrong) bar against the full paper,
+    // so the teacher reads the class at a glance instead of parsing numbers.
+    const denom=Math.max(1, prog.total||prog.answered||1);
     nm.innerHTML='<b>'+escapeHtml(displayName(p.surname,p.firstName))+'</b>'
-      +'<br><small class="hint mono" style="font-size:.62rem;margin:2px 0 0;">'+prog.answered+'/'+prog.total+' answered'
-      +(prog.answered>0?' &middot; <span style="color:var(--success)">&#10003;'+prog.correct+'</span> <span style="color:var(--magenta)">&#10007;'+prog.wrong+'</span>':'')
-      +'</small>';
+      +'<span class="prog"><i class="ok" style="width:'+(prog.correct/denom*100)+'%"></i>'
+      +'<i class="no" style="width:'+(prog.wrong/denom*100)+'%"></i></span>'
+      +'<small class="prog-num"><em class="ok">&#10003;'+prog.correct+'</em> &nbsp;<em class="no">&#10007;'+prog.wrong+'</em>'
+      +' &nbsp;&middot;&nbsp; '+prog.answered+'/'+prog.total+' answered</small>';
     nm.title=displayName(p.surname,p.firstName);
     who.appendChild(av); who.appendChild(nm);
 
@@ -2069,11 +2106,41 @@ async function showTeacherRecap(){
   stopDashboardPolling();
   let participants=[];
   try{ const r=await Backend.listParticipants(TEACHER.runId); participants=r.participants||[]; }catch(e){ console.warn(e); }
-  const eff=buildEffectiveResults(participants, TEACHER.questions);
-  const list=document.getElementById("recap-list"); list.innerHTML="";
+  RECAP_ROWS=buildEffectiveResults(participants, TEACHER.questions);
   let alertTotal=0, pctSum=0, scored=0;
-  eff.slice().sort((a,b)=>b.percentage-a.percentage).forEach((r,i)=>{
-    alertTotal+=(r.cheatAlerts||[]).length; pctSum+=r.percentage; scored++;
+  RECAP_ROWS.forEach(r=>{ alertTotal+=(r.cheatAlerts||[]).length; pctSum+=r.percentage; scored++; });
+  document.getElementById("recap-count").textContent=RECAP_ROWS.length;
+  document.getElementById("recap-avg").textContent=scored?Math.round(pctSum/scored)+"%":"—";
+  document.getElementById("recap-alerts").textContent=alertTotal;
+  RECAP_SORT={ key:"pct", dir:-1 };
+  renderRecapTable();
+  showScreen("screen-teacher-recap");
+}
+
+/* ---- Recap table: click any column head to sort (second click reverses) ---- */
+let RECAP_ROWS=[], RECAP_SORT={ key:"pct", dir:-1 };
+function recapSortBy(key){
+  // Names read best A→Z first; scores and alerts read best highest-first.
+  if(RECAP_SORT.key===key) RECAP_SORT.dir=-RECAP_SORT.dir;
+  else RECAP_SORT={ key, dir: key==="name" ? 1 : -1 };
+  renderRecapTable();
+}
+function renderRecapTable(){
+  const list=document.getElementById("recap-list"); if(!list) return;
+  const k=RECAP_SORT.key, dir=RECAP_SORT.dir;
+  const val=r=>{
+    if(k==="name") return null;
+    if(k==="score") return r.totalPossible ? r.score/r.totalPossible : 0;
+    if(k==="alerts") return (r.cheatAlerts||[]).length;
+    return r.percentage;
+  };
+  const rows=RECAP_ROWS.slice().sort((a,b)=>{
+    if(k==="name") return dir*bySurname(a,b);
+    const d=val(a)-val(b);
+    return d!==0 ? dir*d : bySurname(a,b);
+  });
+  list.innerHTML="";
+  rows.forEach((r,i)=>{
     const alerts=(r.cheatAlerts||[]).length, pass=r.percentage>=50, done=r.status==="Submitted";
     const div=document.createElement("div"); div.className="recap-row";
     div.innerHTML='<span class="rk">'+(i+1)+'</span>'
@@ -2082,11 +2149,14 @@ async function showTeacherRecap(){
       +'<span class="pc">'+Math.round(r.percentage)+'%</span>'
       +'<span class="al'+(alerts>0?" has":"")+'">'+(alerts>0?alerts:"—")+'</span>'
       +(done?"":'<span class="rk" style="grid-column:2/-1;color:var(--amber);font-weight:700;">'+escapeHtml(r.status||"Incomplete")+'</span>');
-    list.appendChild(div); });
-  document.getElementById("recap-count").textContent=eff.length;
-  document.getElementById("recap-avg").textContent=scored?Math.round(pctSum/scored)+"%":"—";
-  document.getElementById("recap-alerts").textContent=alertTotal;
-  showScreen("screen-teacher-recap");
+    list.appendChild(div);
+  });
+  // Head state: the active column shows a caret pointing the way it's sorted.
+  [["name","sort-name"],["score","sort-score"],["pct","sort-pct"],["alerts","sort-alerts"]].forEach(([key,id])=>{
+    const btn=document.getElementById(id); if(!btn) return;
+    btn.classList.toggle("on", key===k);
+    const caret=btn.querySelector("b"); if(caret) caret.innerHTML = (key===k && dir===1) ? "&#9650;" : "&#9660;";
+  });
 }
 function startNewTestFromRecap(){
   TEACHER={ sessionCode:null, runId:null, questions:[], settings:{} };
