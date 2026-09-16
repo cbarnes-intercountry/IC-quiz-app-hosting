@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>Classroom Exam App (teacher accounts)</title>
+<title>Classroom Exam App</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
@@ -33,11 +33,14 @@
   h2{font-family:"Bricolage Grotesque",serif;font-weight:800;letter-spacing:-.01em;font-size:1.3rem;margin:0 0 10px;}
   p.sub{color:var(--ink-soft);margin-top:0;line-height:1.5;font-size:.95rem;}
   label{display:block;font-weight:700;font-size:.85rem;margin:14px 0 6px;}
-  input[type=text],input[type=password],input[type=number],select,textarea{
+  input[type=text],input[type=email],input[type=password],input[type=number],select,textarea{
     width:100%;padding:12px 14px;font-size:1rem;font-family:inherit;border:2px solid var(--ink);border-radius:11px;background:#fff;color:var(--ink);
   }
   input:focus,select:focus,textarea:focus{outline:none;border-color:var(--magenta);box-shadow:0 0 0 3px var(--magenta-soft);}
   textarea{resize:vertical;min-height:70px;}
+  input[type=file]{width:100%;font-family:inherit;font-size:.8rem;border:2px solid var(--ink);border-radius:11px;background:var(--paper);padding:8px 10px;color:var(--ink);}
+  input[type=file]::file-selector-button{font-family:inherit;font-weight:700;font-size:.76rem;border:2px solid var(--ink);border-radius:8px;background:#fff;color:var(--ink);padding:6px 10px;margin-right:10px;cursor:pointer;box-shadow:2px 2px 0 var(--ink);}
+  audio{width:100%;border:2px solid var(--ink);border-radius:30px;background:var(--paper);}
   button{font-size:1rem;font-family:inherit;font-weight:700;border:2px solid var(--ink);border-radius:12px;padding:13px 18px;cursor:pointer;min-height:48px;background:#fff;color:var(--ink);box-shadow:3px 3px 0 var(--ink);transition:transform .06s ease, box-shadow .06s ease;}
   button:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--ink);}
   .btn-primary{background:var(--magenta);color:#fff;}
@@ -254,6 +257,15 @@
     .recap-head,.recap-row{grid-template-columns:22px 1fr 66px 52px 40px;gap:7px;padding:8px 9px;font-size:.82rem;}
   }
 </style>
+<template id="__bundler_thumbnail" data-bg-color="#EFE9DF">
+  <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+    <rect width="1200" height="800" fill="#EFE9DF"/>
+    <rect x="360" y="240" width="480" height="320" rx="28" fill="#ffffff" stroke="#33333D" stroke-width="10"/>
+    <rect x="420" y="310" width="240" height="20" rx="10" fill="#33333D"/>
+    <rect x="420" y="360" width="160" height="16" rx="8" fill="#75757F"/>
+    <rect x="420" y="430" width="360" height="60" rx="16" fill="#EB0055"/>
+  </svg>
+</template>
 </head>
 <body>
 
@@ -270,112 +282,147 @@
   </div>
 </div>
 
-<!-- ADMIN PASSWORD -->
-<div class="screen" id="screen-admin-password">
-  <div class="card">
-    <h1>Admin</h1>
-    <p class="sub">Quiz creation, import and the quiz library live here. Enter the admin password.</p>
-    <label>Admin password</label>
-    <input type="password" id="a-password" placeholder="Admin password" onkeydown="if(event.key==='Enter') checkAdminPassword();">
-    <div class="row" style="margin-top:16px;">
-      <button class="btn-primary" onclick="checkAdminPassword()">Enter</button>
-    </div>
-    <p style="margin-top:16px;"><a class="linklike" onclick="showScreen('screen-role')">&larr; Back</a></p>
-  </div>
-</div>
-
 <!-- ADMIN -->
 <div class="screen" id="screen-admin">
-  <div class="top-nav">
-    <span class="badge">Admin — Quiz Manager</span>
-    <a class="linklike" onclick="showScreen('screen-role')">Exit</a>
+  <div class="top-nav wide">
+    <span class="badge">Admin &middot; Quiz Manager</span>
+    <a class="linklike" onclick="teacherHome()">&larr; Home</a>
   </div>
-  <div class="card">
-    <h2>Schools</h2>
-    <p class="sub">Manage the list of schools. Each quiz is assigned to a school; teachers pick a school, then a quiz.</p>
-    <div class="row">
-      <input type="text" id="school-add-name" placeholder="e.g. ESC Lyon Business School" style="flex:2;">
-      <button class="btn-secondary" style="flex:1;" onclick="addSchoolUI()">Add School</button>
+  <div class="duo">
+    <div class="card">
+      <h2>Schools</h2>
+      <p class="sub">Every quiz is assigned to one or more schools. Teachers pick a school, then a quiz.</p>
+      <div class="row">
+        <input type="text" id="school-add-name" placeholder="e.g. ESC Lyon Business School" style="flex:2;">
+        <button class="btn-outline" style="flex:0 0 auto;" onclick="addSchoolUI()">Add School</button>
+      </div>
+      <div id="school-list" style="margin-top:10px;"></div>
     </div>
-    <div id="school-list" style="margin-top:10px;"></div>
-  </div>
-  <div class="card" style="margin-top:16px;">
-    <h2>Quiz Bank</h2>
-    <p class="sub">Saved quizzes teachers can run. Build a new one, or load an existing quiz to edit it.</p>
-    <label>Saved quizzes</label>
-    <div class="row">
-      <select id="quiz-library-select" style="flex:2;"><option value="">— select a saved quiz —</option></select>
+    <div class="duo-col">
+      <div class="card">
+        <h2>Quiz Bank</h2>
+        <p class="sub">Saved quizzes teachers can run. Load one to edit it, or start fresh.</p>
+        <select id="quiz-library-select"><option value="">— select a saved quiz —</option></select>
+        <div class="btn-row">
+          <button class="btn-outline" onclick="loadQuizFromLibrary()">Load / Edit</button>
+          <button class="btn-outline" onclick="exportSavedQuiz()">Export</button>
+          <button class="btn-outline" onclick="deleteQuizFromLibrary()">Delete</button>
+        </div>
+        <button class="btn-primary" style="width:100%;margin-top:12px;" onclick="newQuiz()">+ Create a New Quiz</button>
+      </div>
+      <div class="tip">
+        <div class="tip-label">Report retention</div>
+        <p>Teachers only see the last 6 months of results. Run this once a term to download a backup of everything older, then permanently remove it from the database.</p>
+        <button class="btn-ghost" onclick="archiveOldReports()">Download Backup &amp; Purge Old Reports</button>
+        <p id="archive-status" class="sub" style="color:#fff;opacity:.8;margin:10px 0 0;"></p>
+        <small class="hint">A JSON backup downloads first, then runs older than 6 months are deleted. Keep the backup somewhere safe.</small>
+      </div>
     </div>
-    <div class="row" style="margin-top:8px;">
-      <button class="btn-secondary" onclick="loadQuizFromLibrary()">Load / Edit</button>
-      <button class="btn-outline" onclick="exportSavedQuiz()">Export</button>
-      <button class="btn-outline" onclick="deleteQuizFromLibrary()">Delete</button>
-    </div>
-    <button class="btn-primary" style="width:100%;margin-top:14px;" onclick="newQuiz()">+ Create a New Quiz</button>
-  </div>
-  <div class="card" style="margin-top:16px;">
-    <h2>Report Retention</h2>
-    <p class="sub">Teachers only see the last 6 months of results. Run this occasionally (e.g. once a term) to download a backup of everything older than 6 months and then permanently remove it from the database, keeping your free storage clear.</p>
-    <div class="row" style="margin-top:10px;">
-      <button class="btn-secondary" onclick="archiveOldReports()">Download Backup &amp; Purge Old Reports</button>
-    </div>
-    <p id="archive-status" class="sub" style="margin-top:8px;"></p>
-    <small class="hint">Exports a JSON backup file first, then deletes runs older than 6 months. Keep the backup somewhere safe (e.g. SharePoint). This step is manual because the free plan has no scheduled server jobs.</small>
   </div>
 </div>
 
 <!-- ADMIN: QUESTION BUILDER -->
 <div class="screen" id="screen-admin-builder">
-  <div class="top-nav">
-    <span class="badge">Admin — Question Builder</span>
+  <div class="top-nav wide">
+    <span class="badge">Admin &middot; Question Builder</span>
     <a class="linklike" onclick="showScreen('screen-admin')">&larr; Quiz Bank</a>
   </div>
-  <div class="card">
-    <h2>Question Bank (<span id="qcount">0</span>)</h2>
-    <div id="qbank-list"></div>
-    <div class="row" style="margin-top:10px;">
-      <button class="btn-secondary" onclick="openQuestionEditor()">+ Add Question</button>
-      <button class="btn-outline" onclick="importFromExcel()">Import from Excel</button>
-      <button class="btn-outline" onclick="importQuestionsPrompt()">Import JSON</button>
-      <button class="btn-outline" onclick="exportQuestionsJSON()">Export JSON</button>
+  <div class="duo">
+    <div class="duo-col">
+      <div class="card">
+        <h2>Question Bank <span style="color:var(--magenta);" id="qcount">0</span></h2>
+        <div id="qbank-list"></div>
+        <div class="btn-row">
+          <button class="btn-primary" onclick="openQuestionEditor()">+ Add Question</button>
+          <button class="btn-outline" onclick="importFromExcel()">Import Excel</button>
+          <button class="btn-outline" onclick="importQuestionsPrompt()">Import JSON</button>
+          <button class="btn-outline" onclick="exportQuestionsJSON()">Export JSON</button>
+        </div>
+        <small class="hint">Attach an image or audio clip per question (uploaded to the hosting repo), or paste a public link. In Excel use the ImageURL and AudioURL columns.</small>
+        <button class="btn-outline" style="width:100%;margin-top:10px;" onclick="clearAdminBank()">Clear current bank</button>
+      </div>
     </div>
-    <small class="hint">Attach images and audio per question (uploaded to your GitHub repo), or paste public links. In Excel use the ImageURL and AudioURL columns.</small>
-    <button class="btn-outline" style="width:100%;margin-top:10px;" onclick="clearAdminBank()">Clear current bank</button>
-  </div>
-  <div class="card" style="margin-top:16px;">
-    <h2>Save as Quiz</h2>
-    <p class="sub">Name this set of questions and assign it to one or more schools so their teachers can select it.</p>
-    <label>Quiz name</label>
-    <input type="text" id="quiz-save-name" placeholder="e.g. Marketing Midterm 2026">
-    <label>Assign to school(s) — tick all that apply</label>
-    <div id="quiz-school-checks" style="border:1.5px solid var(--border);border-radius:10px;padding:10px;max-height:180px;overflow:auto;"></div>
-    <button class="btn-primary" style="width:100%;margin-top:12px;" onclick="saveQuizToLibrary()">Save Quiz</button>
+    <div class="duo-col">
+      <div class="card" id="qe-card" style="display:none;">
+        <div class="editor-head">
+          <h2>Edit Question</h2>
+          <span class="badge" id="qe-counter">1 of 1</span>
+        </div>
+        <div class="row" style="align-items:center;">
+          <button class="btn-outline" style="flex:1;" onclick="editorPrev()">&larr; Prev</button>
+          <button class="btn-outline" style="flex:1;" onclick="editorNext()">Next &rarr;</button>
+          <button class="btn-danger" style="flex:0 0 auto;" title="Delete this question" onclick="editorDeleteCurrent()">&#128465;</button>
+        </div>
+        <label>Type</label>
+        <select id="qe-type" onchange="renderQEditorOptions()">
+          <option value="mcq">Multiple Choice</option>
+          <option value="tf">True / False</option>
+          <option value="text">Short Text Answer</option>
+          <option value="numeric">Numeric Answer</option>
+          <option value="order">Puzzle — drag to order</option>
+        </select>
+        <div class="field-pair">
+          <div>
+            <label>Points</label>
+            <input type="number" id="qe-points" value="1" min="0">
+          </div>
+          <div>
+            <label>Time (s)</label>
+            <input type="number" id="qe-qtime" value="0" min="0">
+          </div>
+        </div>
+        <label>Question text</label>
+        <textarea id="qe-text" placeholder="Type the question..."></textarea>
+        <div class="field-pair">
+          <div>
+            <label>Image <small class="hint" style="display:inline;">&middot; optional</small></label>
+            <input type="file" id="qe-image-file" accept="image/*" onchange="handleQMediaUpload(event,'image')">
+            <input type="text" id="qe-image-url" placeholder="…or paste a public link" style="margin-top:6px;">
+            <img id="qe-image-preview" class="qimg" style="display:none;max-height:120px;">
+            <small id="qe-image-status" class="hint"></small>
+          </div>
+          <div>
+            <label>Audio <small class="hint" style="display:inline;">&middot; optional</small></label>
+            <input type="file" id="qe-audio-file" accept="audio/*" onchange="handleQMediaUpload(event,'audio')">
+            <input type="text" id="qe-audio-url" placeholder="…or paste a public link" style="margin-top:6px;">
+            <audio id="qe-audio-preview" controls style="display:none;margin-top:6px;"></audio>
+            <small id="qe-audio-status" class="hint">Listening clips &mdash; keep under 10 MB.</small>
+          </div>
+        </div>
+        <div id="qe-options-area"></div>
+        <small class="hint">Per-question time limits apply in open navigation: when time runs out the question locks and the student moves on. Ignored in teacher-paced mode.</small>
+        <button class="btn-primary" style="width:100%;margin-top:14px;" onclick="editorDone()">Save Question</button>
+      </div>
+      <div class="tip">
+        <div class="tip-label">Save as quiz</div>
+        <input type="text" id="quiz-save-name" placeholder="e.g. Marketing Midterm 2026">
+        <label style="font-size:.8rem;">Assign to school(s) — tick all that apply</label>
+        <div id="quiz-school-checks" style="max-height:180px;overflow:auto;"></div>
+        <button class="btn-primary" style="width:100%;margin-top:12px;" onclick="saveQuizToLibrary()">Save Quiz</button>
+      </div>
+    </div>
   </div>
 </div>
 
-<!-- TEACHER SIGN-IN (Firebase account) -->
+<!-- TEACHER SIGN-IN (Firebase teacher accounts) -->
 <div class="screen" id="screen-teacher-password">
   <div class="card">
     <h1>Teacher Sign-in</h1>
-    <p class="sub">Sign in with the teacher account created for you.</p>
+    <p class="sub">Sign in with the teacher account created for you. Your name is recorded on every test you run.</p>
     <div id="signin-ready">
       <label>Email</label>
       <input type="email" id="t-email" placeholder="you@intercountry.com" autocomplete="username">
       <label>Password</label>
       <input type="password" id="t-pass" autocomplete="current-password" onkeydown="if(event.key==='Enter') teacherSignIn();">
-      <div class="row" style="margin-top:16px;">
-        <button class="btn-primary" onclick="teacherSignIn()">Sign in</button>
-      </div>
-      <p style="margin-top:10px;"><a class="linklike" onclick="teacherResetPassword()">Forgot your password?</a></p>
+      <button class="btn-primary" style="width:100%;margin-top:18px;" onclick="teacherSignIn()">Sign in</button>
+      <p style="margin-top:12px;"><a class="linklike" onclick="teacherResetPassword()">Forgot your password?</a></p>
     </div>
-    <p id="signin-status" class="sub" style="margin-top:10px;"></p>
-    <!-- Fallback: only shown in demo mode (no Firebase), so the file stays testable offline. -->
-    <div id="signin-fallback" style="display:none;margin-top:10px;">
-      <label>Teacher password (demo fallback)</label>
+    <p id="signin-status" class="sub mono" style="font-size:.8rem;margin-top:10px;"></p>
+    <div id="signin-fallback" style="display:none;">
+      <div class="step-label" style="margin-top:16px;">Demo mode fallback</div>
+      <label>Teacher password</label>
       <input type="password" id="t-password" placeholder="Password" autocomplete="off" onkeydown="if(event.key==='Enter') checkTeacherPassword();">
-      <div class="row" style="margin-top:10px;">
-        <button class="btn-secondary" onclick="checkTeacherPassword()">Enter</button>
-      </div>
+      <button class="btn-outline" style="width:100%;margin-top:10px;" onclick="checkTeacherPassword()">Enter</button>
     </div>
     <p style="margin-top:16px;"><a class="linklike" onclick="showScreen('screen-role')">&larr; Back</a></p>
   </div>
@@ -383,21 +430,30 @@
 
 <!-- TEACHER SESSION -->
 <div class="screen" id="screen-teacher-login">
-  <div class="top-nav">
-    <a class="linklike" onclick="showScreen('screen-role')">&larr; Home</a>
-    <span>
+  <div class="top-nav wide">
+    <span class="nav-l">
+      <span class="brandmark"><img src="data:image/png;base64,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" alt="Intercountry"></span>
       <span class="badge" id="teacher-identity" style="display:none;"></span>
-      <a class="linklike" title="Admin — quizzes &amp; schools" onclick="showScreen('screen-admin-password')" style="font-size:1.5rem;text-decoration:none;line-height:1;margin-left:8px;">&#9881;</a>
+      <span class="badge">No live session</span>
+    </span>
+    <span class="nav-r">
+      <a class="icon-btn" title="Admin — quizzes &amp; schools" onclick="openAdmin()">&#9881;</a>
+      <a class="linklike" onclick="teacherSignOut()">Log out</a>
     </span>
   </div>
-  <div class="card">
-    <h1>Teacher — Session</h1>
-    <p class="sub">Start a new session — a unique join code is generated automatically and shown once you pick a quiz.</p>
-    <div class="stack" style="margin-top:16px;">
-      <button class="btn-primary" onclick="teacherCreateSession()">New Session</button>
-      <button class="btn-secondary" onclick="openHistory()">Past Quizzes &amp; Results (History)</button>
+  <div class="duo">
+    <div class="card">
+      <h1>Teacher — Home</h1>
+      <p class="sub">Start a new session, or review past results. A join code is generated when you launch.</p>
+      <div class="stack" style="margin-top:16px;">
+        <button class="btn-primary" onclick="teacherCreateSession()">New Session</button>
+        <button class="btn-outline" onclick="openHistory()">Past Quizzes &amp; Results</button>
+      </div>
     </div>
-    <p style="margin-top:14px;"><a class="linklike" id="signout-link" style="display:none;" onclick="teacherSignOut()">Sign out</a></p>
+    <div class="tip">
+      <div class="tip-label">Tip</div>
+      <p>Click <b>New Session</b> to pick a quiz and launch &mdash; then watch the roster on the live dashboard fill in on its own.</p>
+    </div>
   </div>
 </div>
 
@@ -417,12 +473,35 @@
 
 <!-- TEACHER SETUP -->
 <div class="screen" id="screen-teacher-setup">
-  <div class="top-nav">
-    <span class="badge">Session: <b id="setup-session-code"></b></span>
-    <a class="linklike" onclick="showScreen('screen-role')">Exit</a>
+  <div class="top-nav wide">
+    <span class="nav-l">
+      <span class="brandmark"><img src="data:image/png;base64,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" alt="Intercountry"></span>
+      <span class="badge">No live session</span>
+      <span class="badge" id="setup-session-code" style="display:none;"></span>
+    </span>
+    <span class="nav-r">
+      <a class="icon-btn" title="Admin — quizzes &amp; schools" onclick="openAdmin()">&#9881;</a>
+      <a class="linklike" onclick="teacherSignOut()">Log out</a>
+    </span>
   </div>
+  <div class="duo">
   <div class="card">
-    <h2>Settings</h2>
+    <h1>New Session</h1>
+    <p class="sub">Pick a quiz, confirm settings, then launch.</p>
+    <button class="btn-outline" style="padding:10px 14px;font-size:.85rem;min-height:0;" onclick="openHistory()">View past results instead</button>
+  </div>
+  <div class="duo-col">
+  <div class="card">
+    <div class="step-label">Step 1 &middot; Choose a quiz</div>
+    <div class="sel-row">
+      <select id="teacher-school-select" onchange="filterTeacherQuizzes()"><option value="">— select a school —</option></select>
+      <select id="teacher-quiz-select" onchange="teacherQuizPicked()"><option value="">— select a quiz —</option></select>
+    </div>
+    <button class="btn-primary" id="teacher-select-quiz-btn" style="width:100%;" onclick="loadQuizForTeacher()">Select this quiz</button>
+    <p class="picked" id="teacher-quiz-status" style="display:none;"></p>
+  </div>
+  <div class="card" id="setup-step2" style="display:none;">
+    <div class="step-label">Step 2 &middot; Settings</div>
     <div class="toggle-row">
       <span>Teacher-paced navigation<br><small class="hint">Off = students move freely between questions</small></span>
       <label class="switch"><input type="checkbox" id="opt-paced"><span class="slider"></span></label>
@@ -439,116 +518,80 @@
       <span>Security monitoring (fullscreen, tab-switch &amp; copy/paste logging)</span>
       <label class="switch"><input type="checkbox" id="opt-security"><span class="slider"></span></label>
     </div>
-    <label>Overall time limit (minutes, 0 = none)</label>
-    <input type="number" id="opt-time-limit" value="0" min="0" autocomplete="off">
-  </div>
-
-  <div class="card" style="margin-top:16px;">
-    <h2>Choose a Quiz</h2>
-    <p class="sub">Pick your school, then a quiz. Quizzes are created and managed in the Admin section.</p>
-    <label>School</label>
-    <select id="teacher-school-select" onchange="filterTeacherQuizzes()"><option value="">— select a school —</option></select>
-    <label>Quiz</label>
-    <select id="teacher-quiz-select" onchange="loadQuizForTeacher()"><option value="">— select a school first —</option></select>
-    <p class="sub" id="teacher-quiz-status" style="margin-top:10px;">No quiz loaded yet.</p>
-  </div>
-
-  <div class="card" style="margin-top:16px;">
-    <button class="btn-primary" style="width:100%;" onclick="teacherStartTest()">Open Waiting Room &amp; Get Join Code</button>
-    <small class="hint center">Load a quiz first. This opens the waiting room so students can join; you start the test from the dashboard once everyone's connected.</small>
-  </div>
-</div>
-
-<!-- QUESTION EDITOR -->
-<div class="screen" id="screen-question-editor">
-  <div class="top-nav">
-    <span class="badge" id="qe-counter">Question 1 of 1</span>
-    <a class="linklike" onclick="editorDone()">Save &amp; back to list</a>
-  </div>
-  <div class="card">
-    <div class="row" style="align-items:center;margin-bottom:6px;">
-      <button class="btn-secondary" style="flex:1;" onclick="editorPrev()">&larr; Prev</button>
-      <button class="btn-secondary" style="flex:1;" onclick="editorNext()">Next &rarr;</button>
-      <button class="btn-primary" style="flex:1;" onclick="editorAddQuestion()">+ Add</button>
-      <button class="btn-danger" style="flex:0 0 auto;" title="Delete this question" onclick="editorDeleteCurrent()">&#128465;</button>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:14px;padding:14px 0 6px;">
+      <label style="margin:0;">Overall time limit (min &middot; 0 = none)</label>
+      <input type="number" id="opt-time-limit" value="0" min="0" class="mono" style="width:90px;text-align:center;">
     </div>
-    <label>Question type</label>
-    <select id="qe-type" onchange="renderQEditorOptions()">
-      <option value="mcq">Multiple Choice</option>
-      <option value="tf">True / False</option>
-      <option value="text">Short Text Answer</option>
-      <option value="numeric">Numeric Answer</option>
-      <option value="order">Puzzle — drag to order</option>
-    </select>
-    <label>Question text</label>
-    <textarea id="qe-text" placeholder="Type the question..."></textarea>
-    <label>Image (optional)</label>
-    <input type="file" id="qe-image-file" accept="image/*" onchange="handleQMediaUpload(event,'image')">
-    <input type="text" id="qe-image-url" placeholder="…or paste a public image link" style="margin-top:6px;">
-    <img id="qe-image-preview" class="qimg" style="display:none;max-height:150px;">
-    <small id="qe-image-status" class="hint"></small>
-    <label>Audio (optional)</label>
-    <input type="file" id="qe-audio-file" accept="audio/*" onchange="handleQMediaUpload(event,'audio')">
-    <input type="text" id="qe-audio-url" placeholder="…or paste a public audio link" style="margin-top:6px;">
-    <audio id="qe-audio-preview" controls style="display:none;width:100%;margin-top:6px;"></audio>
-    <small id="qe-audio-status" class="hint">Good for listening comprehension. Keep clips under about 10 MB.</small>
-    <div id="qe-options-area"></div>
-    <div class="row">
-      <div style="flex:1;">
-        <label>Points</label>
-        <input type="number" id="qe-points" value="1" min="0">
-      </div>
-      <div style="flex:1;">
-        <label>Time limit (seconds, 0 = none)</label>
-        <input type="number" id="qe-qtime" value="0" min="0">
-      </div>
-    </div>
-    <small class="hint">Per-question time limits apply in student-paced (open) mode: when time runs out, the question locks and the student moves on. Ignored in teacher-paced mode.</small>
-    <div class="row" style="margin-top:16px;">
-      <button class="btn-primary" onclick="editorDone()">Save &amp; Done</button>
-    </div>
+    <small class="hint" style="margin-bottom:16px;">Per-question limits only apply in free navigation &mdash; the question locks when time runs out.</small>
+    <button class="btn-primary" style="width:100%;" onclick="teacherStartTest()">Open Waiting Room &amp; Launch &rarr;</button>
+  </div>
+  </div>
   </div>
 </div>
 
 <!-- TEACHER DASHBOARD -->
 <div class="screen" id="screen-teacher-dashboard">
-  <div class="top-nav">
-    <span class="badge live">LIVE — <b id="dash-session-code"></b></span>
-    <a class="linklike" onclick="teacherLeaveDashboard()">Exit</a>
+  <div class="top-nav" style="max-width:1140px;">
+    <span class="nav-l">
+      <span class="brandmark"><img src="data:image/png;base64,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" alt="Intercountry"></span>
+      <span class="badge live live-dot"><i></i>LIVE &middot; <b id="dash-session-code"></b></span>
+    </span>
+    <span class="nav-r">
+      <a class="icon-btn" title="Admin — quizzes &amp; schools" onclick="openAdmin()">&#9881;</a>
+      <a class="linklike" onclick="teacherLeaveDashboard()">Log out</a>
+    </span>
   </div>
+  <div class="dash-duo">
+  <div class="dash-col">
   <div class="card center">
-    <h2>Student Join</h2>
-    <p class="sub">Scan to join, or enter the code manually on the app page.</p>
-    <div id="qr-code" style="display:flex;justify-content:center;margin:10px 0;cursor:zoom-in;" title="Tap to enlarge for scanning" onclick="openQRFullscreen()"></div>
-    <small class="hint" style="margin-top:0;">Tap the QR code to enlarge it for the class.</small>
-    <p style="font-size:1.6rem;font-weight:800;letter-spacing:2px;margin:6px 0;" id="dash-join-code"></p>
+    <div class="step-label" style="margin-bottom:14px;">Scan to join</div>
+    <div id="qr-code" style="display:flex;justify-content:center;cursor:zoom-in;" title="Tap to enlarge for scanning" onclick="openQRFullscreen()"></div>
+    <p class="join-code" id="dash-join-code"></p>
+    <small class="hint" style="margin:0 0 12px;">Tap the code to enlarge it for the class.</small>
     <div class="row">
-      <button class="btn-outline" onclick="copyQRImage('#qr-code', event)">Copy QR image</button>
-      <button class="btn-outline" onclick="copyJoinLink()">Copy Join Link</button>
+      <button class="btn-outline btn-mini" style="font-size:.8rem;letter-spacing:0;" onclick="copyQRImage('#qr-code', event)">Copy QR image</button>
+      <button class="btn-outline btn-mini" style="font-size:.8rem;letter-spacing:0;" onclick="copyJoinLink()">Copy join link</button>
     </div>
   </div>
-  <div class="card" style="margin-top:16px;">
-    <h2>Test Control</h2>
+  <div class="card">
+    <div class="step-label" style="margin-bottom:12px;">Test control</div>
     <div id="dash-lobby">
       <p class="sub">Waiting room is open. Students who join appear in the list below. When everyone is connected, start the test — all students begin together.</p>
       <button class="btn-primary" style="width:100%;" onclick="teacherBeginQuiz()">&#9654; Start Test for Everyone</button>
     </div>
     <div id="dash-running" style="display:none;">
       <p class="sub" id="dash-mode-note"></p>
-      <div class="row" id="dash-pace-controls">
-        <button class="btn-secondary" onclick="pacedAdvance(-1)">&larr; Previous</button>
-        <span class="badge" id="dash-current-q" style="align-self:center;">Q 1</span>
-        <button class="btn-primary" onclick="pacedAdvance(1)">Next &rarr;</button>
+      <div class="countdown" id="dash-countdown" style="display:none;">
+        <div class="countdown-head"><span>Time remaining</span><span id="dash-cd-limit"></span></div>
+        <div class="countdown-clock" id="dash-cd-clock">--:--</div>
+        <div class="countdown-bar"><i id="dash-cd-bar" style="width:100%"></i></div>
+        <div class="countdown-note" id="dash-cd-note" style="display:none;"></div>
       </div>
-      <button class="btn-secondary" id="dash-pause-btn" style="width:100%;margin-top:12px;display:none;" onclick="teacherTogglePause()">&#9208; Pause Timers</button>
+      <div class="pace-row" id="dash-pace-controls">
+        <button class="btn-outline nav-sq" title="Previous question" onclick="pacedAdvance(-1)">&larr;</button>
+        <span class="qpill" id="dash-current-q">Q 1</span>
+        <button class="btn-primary nav-sq" title="Next question" onclick="pacedAdvance(1)">&rarr;</button>
+      </div>
+      <button class="btn-warn" id="dash-pause-btn" style="width:100%;margin-top:12px;display:none;" onclick="teacherTogglePause()">&#9208; Pause Timers</button>
       <small class="hint" id="dash-pause-note" style="display:none;">Freezes the overall and per-question timers for everyone. Students see a "paused" screen and can't answer until you resume.</small>
       <button class="btn-danger" style="width:100%;margin-top:12px;" onclick="teacherEndTest()">End Test for Everyone</button>
     </div>
   </div>
-  <div class="card" style="margin-top:16px;">
-    <h2>Connected Students (<span id="dash-student-count">0</span>)</h2>
-    <div id="dash-student-list"></div>
-    <small class="hint" id="dash-poll-note">Updates live as students join and answer. Download results after you end the test.</small>
+  </div>
+  <div class="card">
+    <div class="dash-title">
+      <h2>Connected Students <span style="color:var(--magenta);" id="dash-student-count">0</span></h2>
+      <span style="display:inline-flex;gap:8px;">
+        <span class="badge ok" id="dash-done-badge" style="display:none;"></span>
+        <span class="badge bad" id="dash-alert-badge" style="display:none;"></span>
+      </span>
+    </div>
+    <div class="dash-table">
+      <div class="dash-head"><span>#</span><span>Student</span><span>Status</span><span style="text-align:right">Score</span><span style="text-align:right">Alerts</span></div>
+      <div id="dash-student-list"></div>
+    </div>
+    <small class="hint mono" id="dash-poll-note">Updates live. Reset clears a student's alerts (an accidental tab-switch) without turning monitoring off — only later alerts count in the report.</small>
+  </div>
   </div>
 </div>
 
@@ -562,13 +605,18 @@
       <div class="card center" style="padding:14px;"><div style="font-size:1.6rem;font-weight:800;" id="recap-avg">0%</div><small class="hint">Average</small></div>
       <div class="card center" style="padding:14px;"><div style="font-size:1.6rem;font-weight:800;" id="recap-alerts">0</div><small class="hint">Cheat alerts</small></div>
     </div>
-    <div id="recap-list" style="margin-top:16px;"></div>
+    <h2 style="margin:20px 0 2px;">Student scores</h2>
+    <p class="sub" style="margin-bottom:0;">Ranked high to low. Students who hadn't submitted when you ended the test are marked incomplete.</p>
+    <div class="recap-table">
+      <div class="recap-head"><span>#</span><span>Student</span><span>Result</span><span style="text-align:right">%</span><span style="text-align:right">Alerts</span></div>
+      <div id="recap-list"></div>
+    </div>
   </div>
   <div class="card" style="margin-top:16px;">
     <div class="stack">
       <button class="btn-primary" onclick="exportResultsCSV()">Download CSV Results</button>
       <button class="btn-secondary" onclick="startNewTestFromRecap()">Start a New Test</button>
-      <button class="btn-outline" onclick="showScreen('screen-role')">Return to Home</button>
+      <button class="btn-outline" onclick="teacherHome()">Return to Home</button>
     </div>
   </div>
 </div>
@@ -592,11 +640,12 @@
 
 <!-- STUDENT WAITING -->
 <div class="screen" id="screen-student-waiting">
-  <div class="card center">
-    <h1>You're in!</h1>
-    <p><b id="wait-name"></b> — session <b id="wait-code"></b></p>
-    <p class="sub" id="wait-status">Waiting for your teacher to start the test…</p>
-    <button class="btn-primary" id="wait-start-btn" style="display:none;width:100%;font-size:1.2rem;" onclick="studentBeginTest()">&#9654; Start Your Test</button>
+  <div class="card center wait-card">
+    <div class="wait-orb"><span></span><span></span><span></span></div>
+    <h1 class="wait-pop">You're in!</h1>
+    <p class="wait-pop wait-d1"><b id="wait-name"></b> — session <b id="wait-code"></b></p>
+    <p class="sub wait-pop wait-d2" id="wait-status">Waiting for your teacher to start the test<i class="wait-dots"><i>.</i><i>.</i><i>.</i></i></p>
+    <button class="btn-primary wait-cta" id="wait-start-btn" style="display:none;width:100%;font-size:1.2rem;" onclick="studentBeginTest()">&#9654; Start Your Test</button>
     <small class="hint" id="wait-start-hint" style="display:none;">Tap the button to begin. If your teacher enabled monitoring, the test opens in full screen.</small>
   </div>
 </div>
@@ -606,7 +655,6 @@
   <div class="top-nav">
     <span class="badge" id="test-progress">Question 1 of 10</span>
     <span>
-      <span class="badge" id="test-monitored" style="display:none;background:#fff2f0;color:var(--danger);">&#9679; Monitored</span>
       <span class="timer-pill" id="test-timer" style="display:none;">--:--</span>
     </span>
   </div>
@@ -614,7 +662,7 @@
     <div id="q-timer" class="timer-pill" style="display:none;margin-bottom:10px;">--:--</div>
     <h2 id="q-text-display"></h2>
     <img id="q-img-display" class="qimg" style="display:none;">
-    <div id="q-audio-wrap" style="margin:10px 0;"></div>
+    <div id="q-audio-wrap" style="margin:12px 0;"></div>
     <div id="q-answer-area"></div>
   </div>
   <div id="q-palette-wrap" class="card" style="margin-top:16px;">
@@ -628,11 +676,19 @@
 
 <!-- STUDENT FEEDBACK -->
 <div class="screen" id="screen-student-feedback">
-  <div class="card center">
-    <h1>Test Complete</h1>
-    <p style="font-size:2.4rem;margin:10px 0;font-weight:800;" id="fb-score"></p>
-    <p class="sub" id="fb-percentage" style="font-size:1.3rem;"></p>
-    <p class="sub">Thanks, <span id="fb-name"></span>! You may close this window.</p>
+  <div class="fb-panel">
+    <span class="fb-pill">Test Complete</span>
+    <div class="fb-dial">
+      <div class="fb-pct" id="fb-percentage">--%</div>
+      <div class="fb-pts" id="fb-score"></div>
+    </div>
+    <h1 class="fb-title">Nicely done, <span id="fb-name"></span>.</h1>
+    <p class="fb-sub">Your answers are in. You can close this window — your teacher has the results.</p>
+    <div class="fb-stats">
+      <span class="fb-stat"><b id="fb-correct">0</b><i>correct</i></span>
+      <span class="fb-stat"><b id="fb-missed">0</b><i>missed</i></span>
+      <span class="fb-stat"><b id="fb-time">0:00</b><i>min taken</i></span>
+    </div>
   </div>
 </div>
 
@@ -676,9 +732,8 @@
 /* Fallback teacher password — used ONLY in demo mode (no Firebase configured), so the file
    stays testable offline. With Firebase live, teacher accounts are the only way in. */
 const TEACHER_PASSWORD = "changeme";
-/* Admin password — gates quiz creation/import & the quiz library, on top of teacher sign-in.
-   A soft gate readable in the page source, so treat it as a second door, not real security. */
-const ADMIN_PASSWORD = "admin";
+/* No separate admin password: the Admin area is reachable from the teacher screen,
+   which is already behind Firebase teacher sign-in. Every signed-in teacher is an admin. */
 
 /* =========================================================================
    TEACHER SIGN-IN — Firebase Authentication (email + password)
@@ -716,7 +771,6 @@ function teacherAcceptUser(user){
   TEACHER_USER = { name: label, email: user.email || "" };
   const badge=document.getElementById("teacher-identity");
   if(badge){ badge.textContent = TEACHER_USER.name; badge.style.display="inline-block"; }
-  const so=document.getElementById("signout-link"); if(so) so.style.display="inline";
   return true;
 }
 // "I'm the Teacher" — if this browser is already signed in, go straight to the session screen
@@ -728,6 +782,18 @@ function goTeacher(){
     if(u && !u.isAnonymous && teacherAcceptUser(u)){ showScreen("screen-teacher-login"); return; }
   }catch(e){ /* not signed in / Firebase unavailable — fall through to sign-in */ }
   showScreen("screen-teacher-password");
+}
+/* "Home" for a signed-in teacher = the Teacher — Session screen, NOT the role screen.
+   Logging out is a separate, explicit action (teacherSignOut). If somehow nobody is
+   signed in, fall back to the role screen so the app can't strand the user. */
+function teacherHome(){
+  if(typeof stopDashboardPolling === "function"){ try{ stopDashboardPolling(); }catch(e){} }
+  if(TEACHER_USER){ showScreen("screen-teacher-login"); return; }
+  try{
+    const u = firebase.auth().currentUser;
+    if(u && !u.isAnonymous && teacherAcceptUser(u)){ showScreen("screen-teacher-login"); return; }
+  }catch(e){ /* not signed in / Firebase unavailable */ }
+  showScreen("screen-role");
 }
 async function teacherSignIn(){
   const status=document.getElementById("signin-status");
@@ -774,7 +840,6 @@ async function teacherResetPassword(){
 async function teacherSignOut(){
   TEACHER_USER=null;
   const badge=document.getElementById("teacher-identity"); if(badge) badge.style.display="none";
-  const so=document.getElementById("signout-link"); if(so) so.style.display="none";
   // Drop teacher-level database access straight away, back to an anonymous session.
   if(Backend.live && typeof firebase!=="undefined" && firebase.auth){
     try{ await firebase.auth().signOut(); Backend._authReady = firebase.auth().signInAnonymously(); }
@@ -799,6 +864,8 @@ async function teacherAuthBoot(){
     if(status) status.textContent="Signed in as "+(u.email||"")+".";
   }
 }
+
+
 
 /* ---------- Firebase config ----------
    Paste your project's values here (Firebase console → Project settings → your web app).
@@ -1067,6 +1134,7 @@ const Backend = {
       case "listSessions": {
         const runs = Object.values(s.sessions).sort((a,b)=>b.runAt-a.runAt).map(r=>({
           runId:r.runId, code:r.code, runAt:r.runAt, school:(r.meta&&r.meta.school)||"",
+      teacherName:(r.meta&&r.meta.teacherName)||"",
           studentCount: Object.keys(s.participants[r.runId]||{}).length }));
         return { sessions: runs };
       }
@@ -1116,12 +1184,6 @@ function checkTeacherPassword(){
     TEACHER_USER = { name:"Teacher (password fallback)", email:"" };
     showScreen("screen-teacher-login");
   } else alert("Incorrect password.");
-}
-function checkAdminPassword(){
-  if(document.getElementById("a-password").value === ADMIN_PASSWORD){
-    document.getElementById("a-password").value = "";
-    openAdmin();
-  } else alert("Incorrect admin password.");
 }
 function openAdmin(){
   showScreen("screen-admin");
@@ -1173,7 +1235,7 @@ async function renderSchools(){
   schools.forEach(name=>{
     const div=document.createElement("div"); div.className="student-row";
     div.innerHTML='<span>'+name+'</span>';
-    const btn=document.createElement("button"); btn.className="btn-outline"; btn.style.flex="0 0 auto"; btn.textContent="Remove";
+    const btn=document.createElement("button"); btn.className="btn-outline btn-mini"; btn.style.flex="0 0 auto"; btn.textContent="Remove";
     btn.onclick=()=>removeSchoolUI(name);
     div.appendChild(btn); list.appendChild(div);
   });
@@ -1215,7 +1277,7 @@ async function removeSchoolUI(name){
 window.addEventListener("DOMContentLoaded", () => {
   Backend.init();
   refreshModeBadge();
-  teacherAuthBoot();   // prepare teacher sign-in (or reveal the fallback in demo mode)
+  teacherAuthBoot();   // recognise a signed-in teacher, or reveal the demo fallback
   const joinCode = new URLSearchParams(location.search).get("join");
   if(joinCode){
     document.getElementById("s-session-code").value = joinCode.toUpperCase();
@@ -1258,12 +1320,12 @@ async function teacherCreateSession(){
   TEACHER.sessionCode = code;
   TEACHER.runId = null;
   TEACHER.questions = [];   // teacher chooses a quiz from the library each time
-  document.getElementById("setup-session-code").textContent = code;
   document.getElementById("dash-session-code").textContent = code;
-  document.getElementById("teacher-quiz-status").textContent = "No quiz loaded yet.";
-  // Reset the time limit to "no limit" for every new session. Without this, browsers restore the
-  // last value typed into the field (so a 45 entered once would reappear as an apparent default).
+  const setupCode=document.getElementById("setup-session-code");
+  setupCode.textContent="Code · "+code; setupCode.style.display="inline-block";
+  // Reset to "no limit" for every new session — browsers otherwise restore the last value typed.
   document.getElementById("opt-time-limit").value = 0;
+  teacherResetStep2();
   await loadTeacherQuizList();
   showScreen("screen-teacher-setup");
 }
@@ -1279,12 +1341,20 @@ async function loadTeacherQuizList(){
     document.getElementById("teacher-quiz-select").innerHTML = '<option value="">— select a school first —</option>';
   }catch(e){ console.warn(e); }
 }
+// Step 2 stays hidden until a quiz is actually loaded; changing school or quiz re-arms step 1.
+function teacherResetStep2(){
+  const st=document.getElementById("teacher-quiz-status");
+  st.style.display="none"; st.textContent="";
+  document.getElementById("setup-step2").style.display="none";
+  document.getElementById("teacher-select-quiz-btn").style.display="block";
+}
+function teacherQuizPicked(){ TEACHER.questions=[]; teacherResetStep2(); }
 function filterTeacherQuizzes(){
   const school = document.getElementById("teacher-school-select").value;
   const qSel = document.getElementById("teacher-quiz-select");
   TEACHER.questions = []; TEACHER.school = school;
-  document.getElementById("teacher-quiz-status").textContent = "No quiz loaded yet.";
-  qSel.innerHTML = school ? '<option value="">— select a quiz —</option>' : '<option value="">— select a school first —</option>';
+  teacherResetStep2();
+  qSel.innerHTML = '<option value="">— select a quiz —</option>';
   if(!school) return;
   TEACHER_QUIZZES.filter(q=>(q.schools||[]).includes(school)).sort((a,b)=>a.name.localeCompare(b.name)).forEach(q=>{
     const o=document.createElement("option"); o.value=q.key;
@@ -1295,15 +1365,18 @@ function filterTeacherQuizzes(){
 async function loadQuizForTeacher(){
   const key = document.getElementById("teacher-quiz-select").value;
   const status = document.getElementById("teacher-quiz-status");
-  if(!key){ TEACHER.questions=[]; status.textContent="No quiz loaded yet."; return; }
+  if(!key){ alert("Pick a school and a quiz first."); return; }
   try{
     const quiz = await Backend.getQuiz(key);
-    if(!quiz){ status.textContent="That quiz could not be found."; TEACHER.questions=[]; return; }
+    if(!quiz){ alert("That quiz could not be found."); TEACHER.questions=[]; return; }
     TEACHER.questions = (quiz.questions||[]).map(q=>Object.assign({},q,{id:q.id||"q_"+uid(6)}));
     // The run is tagged with the school the teacher selected (a quiz may serve several schools).
     TEACHER.school = document.getElementById("teacher-school-select").value || quizSchools(quiz)[0] || "";
-    status.textContent = "Loaded: " + quiz.name + " — " + TEACHER.questions.length + " question(s). Ready to start.";
-  }catch(e){ status.textContent="Load failed: "+e.message; }
+    status.textContent = "\u2713 Selected — " + TEACHER.questions.length + " question" + (TEACHER.questions.length===1?"":"s") + ". Set up below.";
+    status.style.display = "flex";
+    document.getElementById("teacher-select-quiz-btn").style.display = "none";
+    document.getElementById("setup-step2").style.display = "block";
+  }catch(e){ alert("Load failed: "+e.message); }
 }
 
 /* ============ SAVED QUIZ LIBRARY (admin) ============ */
@@ -1493,17 +1566,20 @@ function renderQBank(){
   document.getElementById("qcount").textContent = TEACHER.questions.length;
   const list = document.getElementById("qbank-list");
   list.innerHTML = "";
-  if(TEACHER.questions.length===0){ list.innerHTML='<p class="sub">No questions yet. Use “+ Add Question”.</p>'; return; }
+  if(TEACHER.questions.length===0){
+    list.innerHTML='<p class="sub">No questions yet. Use “+ Add Question”.</p>';
+    document.getElementById("qe-card").style.display="none";
+    return;
+  }
+  const TAGS={mcq:"MCQ",tf:"T/F",text:"TEXT",numeric:"NUM",order:"ORDER"};
   TEACHER.questions.forEach((q,i)=>{
-    const div=document.createElement("div"); div.className="qbank-item";
-    const txt=document.createElement("span"); txt.className="qtxt"; txt.style.cursor="pointer"; txt.title="Edit";
-    txt.textContent=(i+1)+'. ['+(q.type||"?").toUpperCase()+'] '+(q.text||"(no text yet)");
-    txt.onclick=()=>openQuestionEditor(i);
-    const btns=document.createElement("span");
-    const edit=document.createElement("button"); edit.className="btn-outline"; edit.style.padding="6px 10px"; edit.textContent="Edit"; edit.onclick=()=>openQuestionEditor(i);
-    const del=document.createElement("button"); del.className="btn-danger"; del.style.cssText="padding:6px 10px;margin-left:6px;"; del.title="Delete"; del.innerHTML="&#128465;"; del.onclick=()=>removeQuestion(i);
-    btns.appendChild(edit); btns.appendChild(del);
-    div.appendChild(txt); div.appendChild(btns);
+    const div=document.createElement("div");
+    div.className="qbank-item"+(i===EDIT_INDEX?" active":"");
+    div.onclick=()=>openQuestionEditor(i);
+    const num=document.createElement("span"); num.className="qnum"; num.textContent=String(i+1).padStart(2,"0");
+    const txt=document.createElement("span"); txt.className="qtxt"; txt.textContent=q.text||"(no text yet)";
+    const tag=document.createElement("span"); tag.className="qtag"; tag.textContent=TAGS[q.type]||"?";
+    div.appendChild(num); div.appendChild(txt); div.appendChild(tag);
     list.appendChild(div);
   });
 }
@@ -1518,8 +1594,9 @@ function openQuestionEditor(i){
   }
   EDIT_INDEX = i;
   writeQuestionToForm(TEACHER.questions[i]);
-  document.getElementById("qe-counter").textContent = "Question "+(EDIT_INDEX+1)+" of "+TEACHER.questions.length;
-  showScreen("screen-question-editor");
+  document.getElementById("qe-counter").textContent = (EDIT_INDEX+1)+" of "+TEACHER.questions.length;
+  document.getElementById("qe-card").style.display="block";   // editor lives beside the bank
+  renderQBank();
 }
 function writeQuestionToForm(q){
   document.getElementById("qe-type").value = q.type || "mcq";
@@ -1627,10 +1704,10 @@ function editorAddQuestion(){ if(!commitCurrentQuestion()) return; TEACHER.quest
 function editorDeleteCurrent(){
   if(!confirm("Delete this question?")) return;
   TEACHER.questions.splice(EDIT_INDEX,1);
-  if(TEACHER.questions.length===0){ renderQBank(); showScreen("screen-admin-builder"); return; }
+  if(TEACHER.questions.length===0){ EDIT_INDEX=-1; renderQBank(); return; }
   openQuestionEditor(Math.min(EDIT_INDEX, TEACHER.questions.length-1));
 }
-function editorDone(){ if(!commitCurrentQuestion()) return; renderQBank(); showScreen("screen-admin-builder"); }
+function editorDone(){ if(!commitCurrentQuestion()) return; renderQBank(); }
 function exportQuestionsJSON(){
   const blob=new Blob([JSON.stringify(TEACHER.questions,null,2)],{type:"application/json"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="questions.json"; a.click();
@@ -1756,6 +1833,41 @@ async function teacherBeginQuiz(){
   document.getElementById("dash-pause-note").style.display = hasTimers?"block":"none";
   document.getElementById("dash-lobby").style.display="none";
   document.getElementById("dash-running").style.display="block";
+  startTeacherCountdown();
+}
+
+/* ---- Teacher-side countdown (open navigation only — in paced mode the teacher drives the clock) ---- */
+let TEACHER_CD={ interval:null, remainSec:0, totalSec:0 };
+function startTeacherCountdown(){
+  stopTeacherCountdown();
+  const box=document.getElementById("dash-countdown");
+  const mins=Number(TEACHER.settings.timeLimitMin)||0;
+  if(TEACHER.settings.paced || mins<=0){ box.style.display="none"; return; }
+  TEACHER_CD.totalSec=mins*60; TEACHER_CD.remainSec=mins*60;
+  document.getElementById("dash-cd-limit").textContent=mins+" min";
+  box.style.display="block";
+  renderTeacherCountdown();
+  TEACHER_CD.interval=setInterval(()=>{
+    if(TEACHER.settings.paused){ renderTeacherCountdown(); return; }   // frozen with the students' timers
+    if(TEACHER_CD.remainSec>0) TEACHER_CD.remainSec--;
+    renderTeacherCountdown();
+  },1000);
+}
+function stopTeacherCountdown(){ if(TEACHER_CD.interval){ clearInterval(TEACHER_CD.interval); TEACHER_CD.interval=null; } }
+function renderTeacherCountdown(){
+  const box=document.getElementById("dash-countdown"); if(!box) return;
+  const left=TEACHER_CD.remainSec, low=left>0&&left<=300, out=left<=0;
+  box.className="countdown"+(out?" out":(low?" low":""));
+  document.getElementById("dash-cd-clock").textContent=fmtTime(left);
+  document.getElementById("dash-cd-bar").style.width=(TEACHER_CD.totalSec?Math.max(0,Math.min(100,left/TEACHER_CD.totalSec*100)):0)+"%";
+  const note=document.getElementById("dash-cd-note");
+  let txt="";
+  if(TEACHER.settings.paused) txt="Clock paused — students' timers are frozen too.";
+  else if(out) txt="Time is up — papers were auto-submitted. End the test to see the recap.";
+  else if(low) txt="Under 5 minutes remaining.";
+  note.textContent=txt;
+  note.style.color = out?"var(--magenta)":"var(--amber)";
+  note.style.display = txt?"block":"none";
 }
 // Freeze / unfreeze every student's timers.
 async function teacherTogglePause(){
@@ -1829,7 +1941,7 @@ async function pacedAdvance(dir){
   let idx=(TEACHER.settings.currentIndex||0)+dir;
   idx=Math.max(0,Math.min(TEACHER.questions.length-1,idx));
   TEACHER.settings.currentIndex=idx;
-  document.getElementById("dash-current-q").textContent="Q "+(idx+1);
+  document.getElementById("dash-current-q").textContent="Q "+(idx+1)+" / "+TEACHER.questions.length;
   try{ await Backend.updateMeta(TEACHER.runId, TEACHER.settings); }catch(e){ console.warn(e); }
 }
 let DASH_UNSUB=null, DASH_PARTICIPANTS=[];
@@ -1840,7 +1952,7 @@ function startDashboardPolling(){
     renderDashboardList();
   });
 }
-function stopDashboardPolling(){ if(DASH_UNSUB){ DASH_UNSUB(); DASH_UNSUB=null; } }
+function stopDashboardPolling(){ if(DASH_UNSUB){ DASH_UNSUB(); DASH_UNSUB=null; } stopTeacherCountdown(); }
 // A participant's raw logged alerts (from result if submitted, else live progress).
 function rawCheatAlerts(p){
   if(p.result && p.result.cheatAlerts) return p.result.cheatAlerts;
@@ -1854,15 +1966,13 @@ function effectiveCheatCount(p){ return Math.max(0, rawCheatAlerts(p).length - (
 // Scored against the teacher's own copy of the questions, so it also works mid-test.
 function participantProgress(p, questions){
   const total=(questions||[]).length;
-  let order, answers;
-  if(p.result){ // finished: use the submitted answer rows
+  if(p.result){
     const rows=p.result.answers||[];
     const correct=rows.filter(a=>a.isCorrect).length;
     return { answered:rows.length, total:total||rows.length, correct, wrong:rows.length-correct, done:true };
   }
-  if(p.progress){ order=p.progress.order||[]; answers=p.progress.answers||{}; }
-  else return { answered:0, total, correct:0, wrong:0, done:false };
-
+  if(!p.progress) return { answered:0, total, correct:0, wrong:0, done:false };
+  const order=p.progress.order||[], answers=p.progress.answers||{};
   let answered=0, correct=0;
   const scored=scoreAnswers(questions||[], order, answers, {});
   scored.answerRows.forEach((row,pos)=>{
@@ -1877,30 +1987,66 @@ function renderDashboardList(){
   document.getElementById("dash-student-count").textContent = DASH_PARTICIPANTS.length;
   const list=document.getElementById("dash-student-list"); list.innerHTML="";
   const now=Date.now();
-  DASH_PARTICIPANTS.slice().sort(bySurname).forEach(p=>{
-    let status;
-    if(p.result){ status=Math.round(p.result.percentage)+"% ✓ done"; }
-    else { const stale = p.lastSeen && (now-p.lastSeen>30000); status = stale ? "⚠ disconnected (partial saved)" : "in progress"; }
+  // Flagged students float to the top (most alerts first); everyone else stays alphabetical.
+  DASH_PARTICIPANTS.slice().sort((a,b)=>{
+    const aa=effectiveCheatCount(a), ab=effectiveCheatCount(b);
+    if((aa>0)!==(ab>0)) return aa>0?-1:1;
+    if(aa!==ab) return ab-aa;
+    return bySurname(a,b);
+  }).forEach((p,i)=>{
     const alerts=effectiveCheatCount(p);
+    const stale = !p.result && p.lastSeen && (now-p.lastSeen>30000);
+    const div=document.createElement("div"); div.className="dash-row"+(alerts>0?" flagged":"");
+
+    const rk=document.createElement("span"); rk.className="rk"; rk.textContent=i+1;
+
+    const who=document.createElement("span"); who.className="who";
+    const av=document.createElement("span"); av.className="avatar";
+    av.textContent=((p.surname||"?")[0]+(p.firstName||"?")[0]).toUpperCase();
     const prog=participantProgress(p, TEACHER.questions);
-    const div=document.createElement("div"); div.className="student-row";
-    const nameEl=document.createElement("span");
-    nameEl.innerHTML = '<b>'+escapeHtml(displayName(p.surname,p.firstName))+'</b>'+
-      '<br><small class="hint">'+prog.answered+'/'+prog.total+' answered'+
-      (prog.answered>0 ? ' · <span style="color:var(--success)">✓'+prog.correct+'</span> <span style="color:var(--danger)">✗'+prog.wrong+'</span>' : '')+
-      '</small>';
-    const statusEl=document.createElement("span"); statusEl.textContent=status;
-    const alertEl=document.createElement("span"); alertEl.className="alert-count"; alertEl.textContent = alerts>0 ? "⚠ "+alerts : "";
-    div.appendChild(nameEl); div.appendChild(statusEl); div.appendChild(alertEl);
+    const nm=document.createElement("span"); nm.style.cssText="min-width:0;overflow:hidden;";
+    nm.innerHTML='<b>'+escapeHtml(displayName(p.surname,p.firstName))+'</b>'
+      +'<br><small class="hint mono" style="font-size:.62rem;margin:2px 0 0;">'+prog.answered+'/'+prog.total+' answered'
+      +(prog.answered>0?' &middot; <span style="color:var(--success)">&#10003;'+prog.correct+'</span> <span style="color:var(--magenta)">&#10007;'+prog.wrong+'</span>':'')
+      +'</small>';
+    nm.title=displayName(p.surname,p.firstName);
+    who.appendChild(av); who.appendChild(nm);
+
+    // One status pill: alerts outrank everything, then done / disconnected / in progress.
+    const st=document.createElement("span");
+    const pill=document.createElement("span");
+    const waiting = (TEACHER.settings||{}).status==="waiting";
+    if(alerts>0){ pill.className="pill alert"; pill.textContent="⚠ "+alerts+" alert"+(alerts===1?"":"s"); }
+    else if(p.result){ pill.className="pill done"; pill.textContent="✓ Done"; }
+    else if(stale){ pill.className="pill alert"; pill.textContent="⚠ Dropped"; }
+    else if(waiting){ pill.className="pill wait"; pill.textContent="In waiting room"; }
+    else { pill.className="pill live"; pill.innerHTML='<i></i>In test'; }
+    st.appendChild(pill);
+
+    const sc=document.createElement("span"); sc.className="sc";
+    sc.textContent = p.result ? Math.round(p.result.percentage)+"%" : "—";
+    if(!p.result) sc.style.color="var(--ink-soft)";
+
+    const ac=document.createElement("span"); ac.className="ac";
     if(alerts>0){
-      const btn=document.createElement("button"); btn.className="btn-outline";
-      btn.style.cssText="padding:4px 10px;flex:0 0 auto;min-height:0;";
+      const btn=document.createElement("button"); btn.className="btn-outline btn-mini";
       btn.textContent="Reset"; btn.title="Clear these alerts — monitoring stays on";
       btn.onclick=()=>resetCheatFor(p.studentId);
-      div.appendChild(btn);
+      ac.appendChild(btn);
+    }else{
+      const dash=document.createElement("span"); dash.className="sc"; dash.style.color="var(--ink-soft)"; dash.textContent="—";
+      ac.appendChild(dash);
     }
+
+    div.appendChild(rk); div.appendChild(who); div.appendChild(st); div.appendChild(sc); div.appendChild(ac);
     list.appendChild(div);
   });
+  // Header tallies
+  const doneN=DASH_PARTICIPANTS.filter(p=>p.result).length;
+  const alertN=DASH_PARTICIPANTS.filter(p=>effectiveCheatCount(p)>0).length;
+  const dB=document.getElementById("dash-done-badge"), aB=document.getElementById("dash-alert-badge");
+  dB.textContent=doneN+" done"; dB.style.display=doneN?"inline-block":"none";
+  aB.textContent=alertN+" alert"+(alertN===1?"":"s"); aB.style.display=alertN?"inline-block":"none";
 }
 // Teacher clears a student's alerts (e.g. an accidental tab-switch), keeping monitoring live.
 async function resetCheatFor(studentId){
@@ -1926,9 +2072,16 @@ async function showTeacherRecap(){
   const eff=buildEffectiveResults(participants, TEACHER.questions);
   const list=document.getElementById("recap-list"); list.innerHTML="";
   let alertTotal=0, pctSum=0, scored=0;
-  eff.slice().sort(bySurname).forEach(r=>{ alertTotal+=(r.cheatAlerts||[]).length; pctSum+=r.percentage; scored++;
-    const div=document.createElement("div"); div.className="student-row";
-    div.innerHTML='<span>'+displayName(r.surname,r.firstName)+'</span><span>'+r.score+'/'+r.totalPossible+' ('+Math.round(r.percentage)+'%)'+(r.status&&r.status!=="Submitted"?" — "+r.status:"")+'</span>';
+  eff.slice().sort((a,b)=>b.percentage-a.percentage).forEach((r,i)=>{
+    alertTotal+=(r.cheatAlerts||[]).length; pctSum+=r.percentage; scored++;
+    const alerts=(r.cheatAlerts||[]).length, pass=r.percentage>=50, done=r.status==="Submitted";
+    const div=document.createElement("div"); div.className="recap-row";
+    div.innerHTML='<span class="rk">'+(i+1)+'</span>'
+      +'<span class="nm" title="'+escapeHtml(displayName(r.surname,r.firstName))+'">'+escapeHtml(displayName(r.surname,r.firstName))+'</span>'
+      +'<span class="mk '+(pass?"pass":"fail")+'">'+r.score+'/'+r.totalPossible+'</span>'
+      +'<span class="pc">'+Math.round(r.percentage)+'%</span>'
+      +'<span class="al'+(alerts>0?" has":"")+'">'+(alerts>0?alerts:"—")+'</span>'
+      +(done?"":'<span class="rk" style="grid-column:2/-1;color:var(--amber);font-weight:700;">'+escapeHtml(r.status||"Incomplete")+'</span>');
     list.appendChild(div); });
   document.getElementById("recap-count").textContent=eff.length;
   document.getElementById("recap-avg").textContent=scored?Math.round(pctSum/scored)+"%":"—";
@@ -2035,8 +2188,8 @@ async function studentJoin(){
   STUDENT.sessionCode=code; STUDENT.surname=surname; STUDENT.firstName=firstName; STUDENT.name=displayName(surname,firstName);
   // Identity: when live, use the Firebase sign-in uid so the security rules can allow a student
   // to write ONLY their own record. Firebase persists the anonymous account in this browser, so a
-  // refresh or brief disconnect returns the same uid and the same attempt.
-  // Demo mode (no Firebase) falls back to a locally stored id.
+  // refresh or brief disconnect returns the same uid and the same attempt. Demo mode falls back
+  // to a locally stored id.
   await Backend._ready();
   STUDENT.id = Backend.uid() || localStorage.getItem("examFB_id_"+code) || ("s_"+uid(8));
   localStorage.setItem("examFB_id_"+code, STUDENT.id);
@@ -2054,9 +2207,7 @@ async function studentJoin(){
   STUDENT.resuming=false;
   if(prior && prior.result){
     // Already submitted — show their result rather than letting them sit through it again.
-    document.getElementById("fb-name").textContent=STUDENT.name;
-    document.getElementById("fb-score").textContent=(prior.result.score||0)+" / "+(prior.result.totalPossible||0);
-    document.getElementById("fb-percentage").textContent=(prior.result.percentage||0).toFixed(1)+"%";
+    fillFeedbackPanel(prior.result);
     STUDENT.finished=true;
     showScreen("screen-student-feedback");
     return;
@@ -2073,11 +2224,10 @@ async function studentJoin(){
     STUDENT.deadline=p.deadline||null;
     STUDENT.resumePos=Math.min(p.currentPos||0, STUDENT.order.length-1);
     // Any per-question timer that ran out while they were away is now locked.
-    const now=Date.now();
-    Object.keys(STUDENT.qDeadlines).forEach(k=>{ if(STUDENT.qDeadlines[k] && STUDENT.qDeadlines[k]<=now) STUDENT.qLocked[k]=true; });
+    const nowMs=Date.now();
+    Object.keys(STUDENT.qDeadlines).forEach(k=>{ if(STUDENT.qDeadlines[k] && STUDENT.qDeadlines[k]<=nowMs) STUDENT.qLocked[k]=true; });
     STUDENT.resuming=true;
   }
-
   try{ await Backend.joinSession(STUDENT.runId, STUDENT.id, surname, firstName, true); }catch(e){ console.warn(e); }
   document.getElementById("wait-name").textContent=STUDENT.name;
   document.getElementById("wait-code").textContent=code;
@@ -2136,8 +2286,21 @@ function studentBeginTest(){
   startStudentTest();
 }
 
+// Fill the results panel from a submitted result (used on submit and on reconnect).
+function fillFeedbackPanel(result){
+  const rows=(result&&result.answers)||[];
+  const correct=rows.filter(r=>r.isCorrect).length;
+  const totalSec=Math.round(rows.reduce((t,r)=>t+(r.timeSpentSec||0),0));
+  document.getElementById("fb-name").textContent=STUDENT.firstName||STUDENT.name;
+  document.getElementById("fb-score").textContent=(result.score||0)+" / "+(result.totalPossible||0)+" pts";
+  document.getElementById("fb-percentage").textContent=Math.round(result.percentage||0)+"%";
+  document.getElementById("fb-correct").textContent=correct;
+  document.getElementById("fb-missed").textContent=rows.length-correct;
+  document.getElementById("fb-time").textContent=Math.floor(totalSec/60)+":"+String(totalSec%60).padStart(2,"0");
+}
+
 function startStudentTest(){
-  // Fresh start clears the per-question timing state; a resume keeps what was restored.
+  // A fresh start clears the per-question timing state; a resume keeps what was restored.
   if(!STUDENT.resuming){ STUDENT.qDeadlines={}; STUDENT.qLocked={}; }
   if(STUDENT.meta.security) enableSecurityMonitoring();
   if(STUDENT.meta.timeLimitMin>0){
@@ -2246,12 +2409,13 @@ function renderCurrentQuestion(){
   const locked=!!(STUDENT.qLocked&&STUDENT.qLocked[pos]);
   document.getElementById("test-progress").textContent="Question "+(pos+1)+" of "+STUDENT.order.length;
   document.getElementById("q-text-display").textContent=q.text;
+  // Replay the slide-in so each question feels like a new card.
+  const qcard=document.getElementById("q-text-display").parentElement;
+  qcard.classList.remove("q-enter"); void qcard.offsetWidth; qcard.classList.add("q-enter");
   const img=document.getElementById("q-img-display");
   if(q.image){ img.src=q.image; img.style.display="block"; } else img.style.display="none";
   const aw=document.getElementById("q-audio-wrap");
-  if(aw) aw.innerHTML = q.audio
-    ? '<audio controls preload="metadata" style="width:100%;" src="'+escapeHtml(q.audio)+'"></audio>'
-    : "";
+  if(aw) aw.innerHTML = q.audio ? '<audio controls preload="metadata" src="'+escapeHtml(q.audio)+'"></audio>' : "";
   const area=document.getElementById("q-answer-area");
   const existing=STUDENT.answers[pos];
   const dis=locked?" disabled":"";
@@ -2421,8 +2585,7 @@ let _lastTouchAt=0;
 function _touchDevice(){ return ("ontouchstart" in window) || (navigator.maxTouchPoints>0); }
 let _securityOn=false;
 function enableSecurityMonitoring(){
-  // Show the on-screen indicator so students know monitoring is active.
-  const badge=document.getElementById("test-monitored"); if(badge) badge.style.display="inline-block";
+  // (No on-screen badge: students are told about monitoring on the consent + waiting screens.)
   // Try to enter full screen. This works because enableSecurityMonitoring is reached from the
   // student's "Start Your Test" tap (a user gesture). Note: iOS Safari does not support web
   // full screen, so on iPhones the test runs windowed and we skip the recovery overlay.
@@ -2520,9 +2683,14 @@ async function studentSubmitTest(auto){
   const {answerRows,score,totalPossible,percentage}=scoreAnswers(STUDENT.questions,STUDENT.order,STUDENT.answers,STUDENT.timeSpent);
   const result={ surname:STUDENT.surname, firstName:STUDENT.firstName, score, totalPossible, percentage, answers:answerRows, cheatAlerts:STUDENT.cheatAlerts, finishedAt:Date.now() };
   try{ await Backend.submitResult(STUDENT.runId, STUDENT.id, STUDENT.surname, STUDENT.firstName, result); }catch(e){ console.warn(e); }
-  document.getElementById("fb-name").textContent=STUDENT.name;
-  document.getElementById("fb-score").textContent=score+" / "+totalPossible;
-  document.getElementById("fb-percentage").textContent=percentage.toFixed(1)+"%";
+  const correct=answerRows.filter(r=>r.isCorrect).length;
+  const totalSec=Math.round(answerRows.reduce((t,r)=>t+(r.timeSpentSec||0),0));
+  document.getElementById("fb-name").textContent=STUDENT.firstName||STUDENT.name;
+  document.getElementById("fb-score").textContent=score+" / "+totalPossible+" pts";
+  document.getElementById("fb-percentage").textContent=Math.round(percentage)+"%";
+  document.getElementById("fb-correct").textContent=correct;
+  document.getElementById("fb-missed").textContent=answerRows.length-correct;
+  document.getElementById("fb-time").textContent=Math.floor(totalSec/60)+":"+String(totalSec%60).padStart(2,"0");
   showScreen("screen-student-feedback");
 }
 </script>
