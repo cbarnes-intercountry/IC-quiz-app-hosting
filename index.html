@@ -75,6 +75,10 @@
   body.projecting .poll-tally .poll-count{font-size:1.1rem;}
   body.projecting .cloud{gap:10px 30px;}
   body.projecting .poll-hidden-note{font-size:2rem;padding:8vh 4vw;}
+  /* Question media on the poll screens */
+  .poll-media{max-width:100%;max-height:34vh;border:2px solid var(--ink);border-radius:12px;margin:10px auto 4px;display:block;object-fit:contain;}
+  body.projecting .poll-media{max-height:42vh;}
+  #poll-audio-wrap:not(:empty){margin:10px 0 4px;}
   .proj-exit{position:fixed;top:12px;right:14px;z-index:60;font-size:.78rem;padding:7px 12px;min-height:0;opacity:.3;}
   .proj-exit:hover{opacity:1;}
   body:not(.projecting) .proj-exit{display:none;}
@@ -827,6 +831,7 @@
     <span class="proj-qpos" id="poll-proj-qpos">Q 1</span>
     <button class="btn-primary" title="Next question" onclick="pollAdvance(1)">&rarr;</button>
     <button class="btn-warn" id="poll-proj-lock" onclick="pollToggleLock()">&#128274; Lock</button>
+    <button class="btn-secondary" id="poll-proj-reveal" onclick="pollToggleReveal()">Reveal</button>
   </div>
   <div class="top-nav wide proj-hide" style="max-width:1140px;">
     <span class="nav-l">
@@ -862,6 +867,8 @@
             <span class="badge" id="poll-timer" style="display:none;"></span>
           </div>
           <h2 class="poll-q" id="poll-question">—</h2>
+          <img id="poll-img" class="poll-media" style="display:none;" alt="">
+          <div id="poll-audio-wrap"></div>
         </div>
         <div class="poll-tally">
           <b id="poll-count-big">0</b>
@@ -898,6 +905,8 @@
       <span class="badge" id="pv-timer" style="display:none;"></span>
     </div>
     <h1 id="pv-question">—</h1>
+    <img id="pv-img" class="qimg" style="display:none;" alt="">
+    <div id="pv-audio-wrap" style="margin:12px 0;"></div>
     <div id="pv-body"></div>
     <p id="pv-status" class="sub" style="margin-top:14px;"></p>
   </div>
@@ -906,16 +915,19 @@
 <!-- STUDENT JOIN -->
 <div class="screen" id="screen-student-join">
   <div class="card">
-    <h1>Join Test</h1>
+    <h1>Join</h1>
     <label>Session code</label>
     <input type="text" id="s-session-code" placeholder="Ask your teacher">
-    <label>Surname (family name)</label>
-    <input type="text" id="s-surname" placeholder="e.g. Dubois">
-    <label>First name</label>
-    <input type="text" id="s-firstname" placeholder="e.g. Marie">
-    <small class="hint">Leave the name boxes empty if your teacher is running an anonymous poll.</small>
+    <!-- Hidden until we know the session actually wants a name: an anonymous poll never does. -->
+    <div id="join-names" style="display:none;">
+      <label>Surname (family name)</label>
+      <input type="text" id="s-surname" placeholder="e.g. Dubois">
+      <label>First name</label>
+      <input type="text" id="s-firstname" placeholder="e.g. Marie">
+    </div>
+    <p id="join-status" class="sub" style="margin-top:10px;"></p>
     <div class="row" style="margin-top:16px;">
-      <button class="btn-primary" onclick="studentJoin()">Join</button>
+      <button class="btn-primary" id="join-btn" onclick="studentJoin()">Continue</button>
     </div>
     <p style="margin-top:16px;"><a class="linklike" onclick="showScreen('screen-role')">&larr; Back</a></p>
   </div>
@@ -1203,7 +1215,26 @@ function normWord(w){
 }
 // Firebase drops empty objects, so every meta map has to be read defensively.
 function metaMap(meta, name){ return (meta && meta[name]) || {}; }
+// Show a question's image/audio in an arbitrary pair of containers. Used by both poll
+// views so a picture attached in the builder actually reaches the projector and the phones.
+function paintQuestionMedia(q, imgId, audioWrapId){
+  const img=document.getElementById(imgId);
+  if(img){
+    if(q && q.image){ img.src=q.image; img.style.display="block"; }
+    else { img.removeAttribute("src"); img.style.display="none"; }
+  }
+  const aw=document.getElementById(audioWrapId);
+  if(aw) aw.innerHTML = (q && q.audio) ? '<audio controls preload="metadata" src="'+escapeHtml(q.audio)+'"></audio>' : "";
+}
 function metaFlag(meta, name, idx){ return !!metaMap(meta,name)[String(idx)]; }
+/* Reveal is tri-state, not a plain flag: the question's own "show results live" setting is
+   the default, and the teacher's Reveal/Hide button overrides it either way. Without this,
+   a live question could never be hidden again mid-discussion. */
+function pollRevealState(meta, idx, q){
+  const m=metaMap(meta,"revealed"), k=String(idx);
+  if(Object.prototype.hasOwnProperty.call(m,k)) return !!m[k];
+  return !!(q && q.showLive);
+}
 
 const Backend = {
   _authReady: null,
@@ -1601,7 +1632,9 @@ window.addEventListener("DOMContentLoaded", () => {
   if(joinCode){
     document.getElementById("s-session-code").value = joinCode.toUpperCase();
     showScreen("screen-student-join");
-    setTimeout(()=>document.getElementById("s-surname").focus(), 50);
+    // Scanning the QR resolves the session straight away: an anonymous poll is joined in one
+    // step, and anything needing a name reveals the name boxes instead.
+    setTimeout(()=>{ studentJoin(); }, 60);
   }
 });
 
@@ -1858,9 +1891,11 @@ async function pollToggleLock(){
   renderPollStage();
 }
 async function pollToggleReveal(){
-  const i=String(POLL.settings.currentIndex||0);
+  const idx=POLL.settings.currentIndex||0;
+  // Write the new state explicitly (true OR false) rather than deleting the key, so it can
+  // override a question that was built with "show results live" turned on.
   POLL.settings.revealed=POLL.settings.revealed||{};
-  if(POLL.settings.revealed[i]) delete POLL.settings.revealed[i]; else POLL.settings.revealed[i]=true;
+  POLL.settings.revealed[String(idx)] = !pollRevealState(POLL.settings, idx, POLL.questions[idx]);
   try{ await Backend.updateMeta(POLL.runId, POLL.settings); }catch(e){ console.warn(e); }
   renderPollStage();
 }
@@ -1908,13 +1943,14 @@ function renderPollStage(){
   const q=POLL.questions[idx];
   if(!q) return;
   const locked=metaFlag(POLL.settings,"locked",idx);
-  const revealed=metaFlag(POLL.settings,"revealed",idx) || !!q.showLive;
+  const revealed=pollRevealState(POLL.settings, idx, q);
   const votes=pollVotesFor(idx);
   const joined=POLL.participants.length;
 
   document.getElementById("poll-qpos").textContent="Q "+(idx+1)+" / "+POLL.questions.length;
   document.getElementById("poll-current-q").textContent="Q "+(idx+1)+" / "+POLL.questions.length;
   document.getElementById("poll-question").textContent=q.text||"";
+  paintQuestionMedia(q, "poll-img", "poll-audio-wrap");
   const stateBadge=document.getElementById("poll-state-badge");
   stateBadge.textContent=locked?"Locked":"Open";
   stateBadge.className="badge"+(locked?" demo":" live");
@@ -1924,8 +1960,12 @@ function renderPollStage(){
   document.getElementById("poll-proj-qpos").textContent="Q "+(idx+1)+" / "+POLL.questions.length;
   document.getElementById("poll-proj-lock").innerHTML = locked ? "&#128275; Unlock" : "&#128274; Lock";
   document.getElementById("poll-lock-btn").innerHTML = locked ? "&#128275; Unlock Question" : "&#128274; Lock Question";
-  document.getElementById("poll-reveal-btn").textContent = metaFlag(POLL.settings,"revealed",idx) ? "Hide Results" : "Reveal Results";
-  document.getElementById("poll-reveal-btn").style.display = q.showLive ? "none" : "";
+  document.getElementById("poll-reveal-btn").textContent = revealed ? "Hide Results" : "Reveal Results";
+  // The projected bar mirrors the desk controls. It stays usable even when the question is
+  // set to show results live, so results can still be hidden again mid-discussion.
+  const pr=document.getElementById("poll-proj-reveal");
+  pr.textContent = revealed ? "Hide" : "Reveal";
+  pr.className = revealed ? "btn-outline" : "btn-secondary";
 
   const box=document.getElementById("poll-results");
   if(!revealed){
@@ -2126,6 +2166,9 @@ function applyBuilderMode(){
 async function saveQuizToLibrary(){
   const mode = BUILDER_MODE;
   const L = SETLABEL[mode];
+  // Commit whatever is open in the editor FIRST. Without this, ticking a box (e.g. "Show
+  // results live") and going straight to Save silently discarded that edit.
+  if(EDIT_INDEX>=0 && EDIT_INDEX<TEACHER.questions.length && !commitCurrentQuestion()) return;
   const name = document.getElementById("quiz-save-name").value.trim();
   const schools = getCheckedSchools();
   if(!name){ alert("Give the "+L.one+" a name first."); return; }
@@ -2365,11 +2408,21 @@ function renderQBank(){
   TEACHER.questions.forEach((q,i)=>{
     const div=document.createElement("div");
     div.className="qbank-item"+(i===EDIT_INDEX?" active":"");
-    div.onclick=()=>openQuestionEditor(i);
+    // Save the open question before jumping to another one, or edits made since the last
+    // "Save Question" would be thrown away without warning.
+    div.onclick=()=>{ if(i!==EDIT_INDEX && EDIT_INDEX>=0 && EDIT_INDEX<TEACHER.questions.length && !commitCurrentQuestion()) return; openQuestionEditor(i); };
     const num=document.createElement("span"); num.className="qnum"; num.textContent=String(i+1).padStart(2,"0");
     const txt=document.createElement("span"); txt.className="qtxt"; txt.textContent=q.text||"(no text yet)";
     const tag=document.createElement("span"); tag.className="qtag"; tag.textContent=TAGS[q.type]||"?";
-    div.appendChild(num); div.appendChild(txt); div.appendChild(tag);
+    div.appendChild(num); div.appendChild(txt);
+    // Make the live-results setting visible at a glance, so a lost tick is obvious.
+    if(isPollType(q.type) && q.showLive){
+      const lv=document.createElement("span"); lv.className="qtag"; lv.textContent="LIVE";
+      lv.style.background="var(--success-soft)"; lv.style.borderColor="var(--success)"; lv.style.color="var(--success)";
+      lv.title="Results show live (no Reveal needed)";
+      div.appendChild(lv);
+    }
+    div.appendChild(tag);
     list.appendChild(div);
   });
 }
@@ -3144,11 +3197,22 @@ async function openHistory(){
 let STUDENT = { sessionCode:null, runId:null, id:null, surname:null, firstName:null, name:null, questions:[], order:[], answers:{},
   currentPos:0, timeSpent:{}, questionStartTs:null, cheatAlerts:[], meta:{}, paced:false, finished:false, testStarted:false };
 
+/* The join screen asks for the code first and only then, if the session actually needs one,
+   for a name. An anonymous poll never shows the name boxes at all. */
+function askForName(msg){
+  const box=document.getElementById("join-names");
+  const first=!box || box.style.display!=="block";
+  if(box) box.style.display="block";
+  document.getElementById("join-status").textContent = msg || "";
+  document.getElementById("join-btn").textContent = "Join";
+  if(first){ const s=document.getElementById("s-surname"); if(s&&s.focus) try{ s.focus(); }catch(e){} }
+}
 async function studentJoin(){
   const code=document.getElementById("s-session-code").value.trim().toUpperCase();
   let surname=document.getElementById("s-surname").value.trim();
   let firstName=document.getElementById("s-firstname").value.trim();
-  if(!code){ alert("Enter the session code."); return; }
+  if(!code){ document.getElementById("join-status").textContent="Enter the session code your teacher is showing."; return; }
+  document.getElementById("join-status").textContent="";
   // A name is required for tests and named polls, but an anonymous poll needs only the code —
   // so the session is resolved first and the name checked afterwards (see below).
   STUDENT.sessionCode=code; STUDENT.surname=surname; STUDENT.firstName=firstName; STUDENT.name=displayName(surname,firstName);
@@ -3168,16 +3232,17 @@ async function studentJoin(){
   if(session.meta.kind==="poll"){
     if(session.meta.status==="ended"){ alert("That poll has finished."); return; }
     if(session.meta.anonymous){
-      // Nothing identifying is stored, whatever was typed in the name boxes.
+      // Nothing identifying is stored, and the name boxes are never shown.
       surname=""; firstName=""; STUDENT.surname=""; STUDENT.firstName=""; STUDENT.name="";
-    } else if(!surname || !firstName){
-      alert("This poll is not anonymous — enter your surname and first name."); return;
+      await pollStudentStart(session, surname, firstName);
+      return;
     }
+    if(!surname || !firstName){ askForName("This poll needs your name."); return; }
     await pollStudentStart(session, surname, firstName);
     return;
   }
 
-  if(!surname||!firstName){ alert("Enter your surname and first name."); return; }
+  if(!surname||!firstName){ askForName("Enter your surname and first name to join this test."); return; }
   const questions=session.questions||[];
   STUDENT.order = STUDENT.meta.randomizeQuestions ? shuffle(questions.map((_,i)=>i)) : questions.map((_,i)=>i);
   STUDENT.questions = questions.map(q=> (q.type==="mcq"&&STUDENT.meta.randomizeAnswers) ? Object.assign({},q,{options:shuffle(q.options)}) : q);
@@ -3259,6 +3324,7 @@ function pollStudentEnd(){
   document.getElementById("pv-qpos").textContent="Finished";
   document.getElementById("pv-timer").style.display="none";
   document.getElementById("pv-question").textContent="Thanks — the poll is over.";
+  paintQuestionMedia(null, "pv-img", "pv-audio-wrap");
   document.getElementById("pv-body").innerHTML='<div class="vote-done">You can put your phone away.</div>';
   document.getElementById("pv-status").textContent="";
 }
@@ -3288,6 +3354,7 @@ function renderPollStudent(){
   if(PSTU.meta.status==="waiting"){
     document.getElementById("pv-qpos").textContent="Waiting";
     document.getElementById("pv-question").textContent="You're in. Waiting for your teacher to start…";
+    paintQuestionMedia(null, "pv-img", "pv-audio-wrap");
     body.innerHTML=""; status.textContent="Keep this page open.";
     return;
   }
@@ -3296,6 +3363,7 @@ function renderPollStudent(){
   if(!q) return;
   document.getElementById("pv-qpos").textContent="Q "+(idx+1)+" / "+PSTU.questions.length;
   document.getElementById("pv-question").textContent=q.text||"";
+  paintQuestionMedia(q, "pv-img", "pv-audio-wrap");
   const closed=pollQClosed(idx);
   body.innerHTML="";
 
@@ -3335,7 +3403,7 @@ function renderPollStudent(){
 async function pollSubmitChoice(opt){
   const idx=PSTU.meta.currentIndex||0;
   if(pollQClosed(idx)) { renderPollStudent(); return; }
-  if(!confirm('Send "'+opt+'"?\n\nYou can\'t change your answer.')) return;
+  // No confirmation: a poll should feel like one tap. The button copy warns it is final.
   PSTU.votes[String(idx)]=opt;
   await pollSaveVotes();
   renderPollStudent();
