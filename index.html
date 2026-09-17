@@ -22,6 +22,8 @@
     /* legacy aliases so older rules keep resolving */
     --primary:#EB0055; --primary-dark:#c2004a; --danger:#EB0055; --warn:#B26B00;
     --bg:#EFE9DF; --card:#ffffff; --text:#33333D; --muted:#75757F; --border:#33333D;
+    /* categorical series — poll options carry no right/wrong meaning */
+    --c1:#EB0055; --c2:#1C6FA8; --c3:#B26B00; --c4:#6B4BA8; --c5:#0F7A8A; --c6:#C2451C; --c7:#0E8A4F; --c8:#9B2C6F;
     color-scheme: light;
   }
   *{box-sizing:border-box;}
@@ -34,16 +36,27 @@
   .poll-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:16px;}
   .poll-count{font-family:"Space Mono",monospace;font-weight:700;font-size:.82rem;}
   .poll-hidden-note{background:var(--paper);border:2px dashed var(--ink);border-radius:14px;padding:30px 18px;text-align:center;font-weight:700;}
-  /* bar chart */
-  .bar-row{margin-bottom:12px;}
-  .bar-head{display:flex;justify-content:space-between;gap:10px;font-weight:700;font-size:.95rem;margin-bottom:5px;}
-  .bar-track{background:var(--paper-2);border:2px solid var(--ink);border-radius:11px;height:34px;overflow:hidden;}
-  .bar-fill{background:var(--magenta);height:100%;width:0;transition:width .35s ease;}
-  .bar-row.top .bar-fill{background:var(--success);}
+  /* bar chart — ranked board */
+  .bar-row{display:flex;align-items:center;gap:12px;margin-bottom:11px;}
+  .bar-rank{flex:none;width:28px;height:28px;display:grid;place-items:center;border:2px solid var(--ink);border-radius:50%;background:#fff;font-family:"Space Mono",monospace;font-weight:700;font-size:.82rem;}
+  .bar-row.top .bar-rank{background:var(--ink);color:#fff;}
+  .bar-body{flex:1;min-width:0;}
+  .bar-label{font-weight:700;font-size:1rem;margin-bottom:4px;line-height:1.2;}
+  .bar-track{display:flex;align-items:center;background:var(--paper-2);border:2px solid var(--ink);border-radius:11px;height:32px;overflow:hidden;}
+  .bar-fill{background:var(--c1);height:100%;width:0;transition:width .35s ease;display:flex;align-items:center;justify-content:flex-end;}
+  .bar-pct{font-family:"Space Mono",monospace;font-weight:700;font-size:.85rem;color:#fff;padding:0 10px;white-space:nowrap;}
+  .bar-pct.out{color:var(--ink);}
+  .bar-n{font-family:"Space Mono",monospace;font-weight:700;font-size:.78rem;color:var(--ink-soft);margin-left:8px;}
+  /* tally */
+  .poll-head{display:flex;justify-content:space-between;align-items:flex-start;gap:24px;margin-bottom:18px;}
+  .poll-head-l{min-width:0;}
+  .poll-tally{flex:none;text-align:right;}
+  .poll-tally b{display:block;font-family:"Bricolage Grotesque",serif;font-weight:800;font-size:2.6rem;line-height:.9;color:var(--magenta);}
+  .poll-tally .poll-count{color:var(--ink-soft);letter-spacing:.06em;text-transform:uppercase;}
   /* word cloud */
   .cloud{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:baseline;justify-content:center;padding:14px 4px;min-height:120px;}
   .cloud-word{font-family:"Bricolage Grotesque",serif;font-weight:800;line-height:1.05;cursor:pointer;border:none;background:none;box-shadow:none;padding:2px 4px;min-height:0;color:var(--ink);}
-  .cloud-word:hover{color:var(--magenta);text-decoration:line-through;}
+  .cloud-word:hover{text-decoration:line-through;opacity:.55;}
   .cloud-empty{color:var(--ink-soft);font-weight:600;text-align:center;padding:30px 0;}
   /* projection mode: hide chrome, scale type for the back of the room */
   body.projecting{background:var(--surface);}
@@ -53,13 +66,24 @@
   body.projecting .poll-stage{border:none;box-shadow:none;border-radius:0;min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:4vh 5vw;}
   body.projecting .poll-q{font-size:min(5.2vw,3.6rem);margin-bottom:14px;}
   body.projecting .poll-count{font-size:1.3rem;}
-  body.projecting .bar-head{font-size:min(2.6vw,1.8rem);}
+  body.projecting .bar-label{font-size:min(2.4vw,1.7rem);}
+  body.projecting .bar-rank{width:min(4vh,40px);height:min(4vh,40px);font-size:min(1.9vh,1.1rem);}
   body.projecting .bar-track{height:min(7vh,64px);}
+  body.projecting .bar-pct{font-size:min(2.2vw,1.5rem);}
+  body.projecting .bar-n{font-size:min(1.6vw,1.1rem);}
+  body.projecting .poll-tally b{font-size:min(9vh,5rem);}
+  body.projecting .poll-tally .poll-count{font-size:1.1rem;}
   body.projecting .cloud{gap:10px 30px;}
   body.projecting .poll-hidden-note{font-size:2rem;padding:8vh 4vw;}
   .proj-exit{position:fixed;top:12px;right:14px;z-index:60;font-size:.78rem;padding:7px 12px;min-height:0;opacity:.3;}
   .proj-exit:hover{opacity:1;}
   body:not(.projecting) .proj-exit{display:none;}
+  /* teacher controls that stay reachable while projecting */
+  .proj-bar{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:60;display:none;align-items:center;gap:10px;background:#fff;border:2px solid var(--ink);border-radius:999px;box-shadow:4px 4px 0 var(--ink);padding:8px 12px;opacity:.35;transition:opacity .15s ease;}
+  .proj-bar:hover,.proj-bar:focus-within{opacity:1;}
+  body.projecting .proj-bar{display:flex;}
+  .proj-bar button{min-height:0;padding:8px 14px;font-size:.9rem;box-shadow:2px 2px 0 var(--ink);}
+  .proj-bar .proj-qpos{font-family:"Space Mono",monospace;font-weight:700;font-size:.85rem;padding:0 4px;white-space:nowrap;}
   /* student vote screen */
   .vote-opt{display:block;width:100%;text-align:left;margin-bottom:10px;font-size:1.05rem;}
   .vote-opt.chosen{background:var(--magenta);color:#fff;}
@@ -798,6 +822,12 @@
 <!-- POLL LIVE (doubles as the projection view) -->
 <div class="screen" id="screen-poll-live">
   <button class="btn-outline proj-exit" onclick="pollToggleProject(false)">Exit projection (Esc)</button>
+  <div class="proj-bar" id="poll-proj-bar">
+    <button class="btn-outline" title="Previous question" onclick="pollAdvance(-1)">&larr;</button>
+    <span class="proj-qpos" id="poll-proj-qpos">Q 1</span>
+    <button class="btn-primary" title="Next question" onclick="pollAdvance(1)">&rarr;</button>
+    <button class="btn-warn" id="poll-proj-lock" onclick="pollToggleLock()">&#128274; Lock</button>
+  </div>
   <div class="top-nav wide proj-hide" style="max-width:1140px;">
     <span class="nav-l">
       <span class="badge live live-dot"><i></i>POLL &middot; <b id="poll-live-code"></b></span>
@@ -824,13 +854,20 @@
 
     <!-- the stage: this is what goes on the projector -->
     <div class="poll-stage" id="poll-stage" style="display:none;">
-      <div class="poll-meta">
-        <span class="badge" id="poll-qpos">Q 1</span>
-        <span class="badge" id="poll-state-badge">Open</span>
-        <span class="poll-count" id="poll-response-count">0 responses</span>
-        <span class="badge" id="poll-timer" style="display:none;"></span>
+      <div class="poll-head">
+        <div class="poll-head-l">
+          <div class="poll-meta">
+            <span class="badge" id="poll-qpos">Q 1</span>
+            <span class="badge" id="poll-state-badge">Open</span>
+            <span class="badge" id="poll-timer" style="display:none;"></span>
+          </div>
+          <h2 class="poll-q" id="poll-question">—</h2>
+        </div>
+        <div class="poll-tally">
+          <b id="poll-count-big">0</b>
+          <span class="poll-count" id="poll-response-count">responses</span>
+        </div>
       </div>
-      <h2 class="poll-q" id="poll-question">—</h2>
       <div id="poll-results"></div>
     </div>
 
@@ -1881,8 +1918,11 @@ function renderPollStage(){
   const stateBadge=document.getElementById("poll-state-badge");
   stateBadge.textContent=locked?"Locked":"Open";
   stateBadge.className="badge"+(locked?" demo":" live");
+  document.getElementById("poll-count-big").textContent = votes.length;
   document.getElementById("poll-response-count").textContent =
-    votes.length+" response"+(votes.length===1?"":"s")+(joined?" of "+joined:"");
+    joined ? ("of "+joined+" voted") : (q.type==="cloud" ? "words in" : "response"+(votes.length===1?"":"s"));
+  document.getElementById("poll-proj-qpos").textContent="Q "+(idx+1)+" / "+POLL.questions.length;
+  document.getElementById("poll-proj-lock").innerHTML = locked ? "&#128275; Unlock" : "&#128274; Lock";
   document.getElementById("poll-lock-btn").innerHTML = locked ? "&#128275; Unlock Question" : "&#128274; Lock Question";
   document.getElementById("poll-reveal-btn").textContent = metaFlag(POLL.settings,"revealed",idx) ? "Hide Results" : "Reveal Results";
   document.getElementById("poll-reveal-btn").style.display = q.showLive ? "none" : "";
@@ -1902,20 +1942,28 @@ function renderPollStage(){
 function renderPollBars(box, counts, total){
   const entries=Object.keys(counts).map(k=>[k,counts[k]]);
   const max=Math.max(1, ...entries.map(e=>e[1]));
+  const series=["--c1","--c2","--c3","--c4","--c5","--c6","--c7","--c8"];
   box.innerHTML="";
-  entries.forEach(([label,n])=>{
+  const ranked=entries.slice().sort((a,b)=>b[1]-a[1]);
+  entries.forEach(([label,n],i)=>{
     const pct= total>0 ? Math.round(n*100/total) : 0;
     const row=document.createElement("div");
     row.className="bar-row"+(n>0&&n===max?" top":"");
-    const head=document.createElement("div"); head.className="bar-head";
-    const l=document.createElement("span"); l.textContent=label;
-    const r=document.createElement("span"); r.textContent=pct+"%  ("+n+")";
-    head.appendChild(l); head.appendChild(r);
+    const rank=document.createElement("span"); rank.className="bar-rank";
+    rank.textContent=(ranked.findIndex(e=>e[0]===label)+1);
+    const body=document.createElement("div"); body.className="bar-body";
+    const l=document.createElement("div"); l.className="bar-label"; l.textContent=label;
     const track=document.createElement("div"); track.className="bar-track";
     const fill=document.createElement("div"); fill.className="bar-fill";
+    fill.style.background="var("+series[i%series.length]+")";
     fill.style.width=(total>0?Math.round(n*100/max):0)+"%";
-    track.appendChild(fill);
-    row.appendChild(head); row.appendChild(track);
+    const p=document.createElement("span"); p.className="bar-pct"; p.textContent=pct+"%";
+    if(pct>=14){ fill.appendChild(p); track.appendChild(fill); }
+    else { track.appendChild(fill); p.className="bar-pct out"; track.appendChild(p); }
+    const cnt=document.createElement("span"); cnt.className="bar-n"; cnt.textContent="("+n+")";
+    track.appendChild(cnt);
+    body.appendChild(l); body.appendChild(track);
+    row.appendChild(rank); row.appendChild(body);
     box.appendChild(row);
   });
 }
@@ -1926,10 +1974,11 @@ function renderPollCloud(counts){
   box.innerHTML="";
   if(entries.length===0){ box.innerHTML='<p class="cloud-empty">No words yet.</p>'; return; }
   const max=entries[0][1];
-  entries.forEach(([word,n])=>{
+  entries.forEach(([word,n],i)=>{
     const b=document.createElement("button");
     b.className="cloud-word";
     b.textContent=word;
+    b.style.color="var(--c"+((i%8)+1)+")";
     // Size by frequency, floor high enough that a single mention is still readable.
     const scale=1+1.9*(max>1?(n-1)/(max-1):0);
     b.style.fontSize=(POLL.projecting?2.1:1.15)*scale+"rem";
