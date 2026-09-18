@@ -35,6 +35,16 @@
   .poll-q{font-family:"Bricolage Grotesque",serif;font-weight:800;letter-spacing:-.02em;font-size:1.5rem;line-height:1.25;margin:0 0 6px;}
   .poll-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:16px;}
   .poll-count{font-family:"Space Mono",monospace;font-weight:700;font-size:.82rem;}
+  .poll-banner{display:flex;align-items:center;gap:14px;background:var(--surface);border:2px solid var(--ink);border-radius:14px;box-shadow:4px 4px 0 var(--ink);padding:12px 18px;margin-bottom:16px;}
+  .poll-banner .lbl{font-family:"Space Mono",monospace;font-size:.68rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft);flex:none;}
+  .poll-banner h2{font-family:"Bricolage Grotesque",serif;font-weight:800;letter-spacing:-.02em;font-size:1.25rem;margin:0;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  body.projecting .poll-banner h2{font-size:min(3vh,2rem);}
+  .lobby-count{display:flex;flex-direction:column;align-items:center;gap:2px;margin:16px 0 4px;}
+  .lobby-count b{font-family:"Bricolage Grotesque",serif;font-weight:800;font-size:3.4rem;line-height:.9;color:var(--magenta);}
+  .lobby-count span{font-family:"Space Mono",monospace;font-weight:700;font-size:.74rem;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);}
+  /* the lobby card floats in the middle of the screen; the stage stays top-aligned */
+  .screen.active .poll-wrap{flex:1;display:flex;flex-direction:column;}
+  #poll-lobby{margin:auto;max-width:520px;}
   .poll-hidden-note{background:var(--paper);border:2px dashed var(--ink);border-radius:14px;padding:30px 18px;text-align:center;font-weight:700;}
   /* bar chart — ranked board */
   .bar-row{display:flex;align-items:center;gap:12px;margin-bottom:11px;}
@@ -63,7 +73,8 @@
   body.projecting .proj-hide{display:none !important;}
   body.projecting #screen-poll-live{padding:0;}
   body.projecting .poll-wrap{max-width:100%;}
-  body.projecting .poll-stage{border:none;box-shadow:none;border-radius:0;min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:4vh 5vw;}
+  body.projecting #screen-poll-live .poll-wrap{min-height:100vh;}
+  body.projecting .poll-stage{border:none;box-shadow:none;border-radius:0;min-height:0;flex:1;display:flex;flex-direction:column;justify-content:center;padding:4vh 5vw;}
   body.projecting .poll-q{font-size:min(5.2vw,3.6rem);margin-bottom:14px;}
   body.projecting .poll-count{font-size:1.3rem;}
   body.projecting .bar-label{font-size:min(2.4vw,1.7rem);}
@@ -76,9 +87,37 @@
   body.projecting .cloud{gap:10px 30px;}
   body.projecting .poll-hidden-note{font-size:2rem;padding:8vh 4vw;}
   /* Question media on the poll screens */
-  .poll-media{max-width:100%;max-height:34vh;border:2px solid var(--ink);border-radius:12px;margin:10px auto 4px;display:block;object-fit:contain;}
-  body.projecting .poll-media{max-height:42vh;}
-  #poll-audio-wrap:not(:empty){margin:10px 0 4px;}
+  .poll-media-wrap{display:flex;flex-direction:column;align-items:center;gap:8px;}
+  .poll-media-wrap:empty{display:none;}
+  .poll-media{max-width:100%;max-height:34vh;border:2px solid var(--ink);border-radius:12px;
+    box-shadow:5px 5px 0 var(--ink);margin:10px auto 6px;display:block;object-fit:contain;}
+  body.projecting .poll-media{max-height:42vh;box-shadow:8px 8px 0 var(--ink);}
+  #poll-audio-wrap:not(:empty){margin:4px auto 8px;}
+  /* Only the bar belonging to the screen you're on may show */
+  .screen:not(.active) .proj-bar{display:none !important;}
+  /* Poll debrief — one collapsed row per question, opened on click */
+  .debrief-list{display:flex;flex-direction:column;gap:10px;margin-top:6px;}
+  .debrief-row{border:2px solid var(--ink);border-radius:14px;overflow:hidden;background:var(--surface);}
+  .debrief-row.open{box-shadow:4px 4px 0 var(--magenta);}
+  .debrief-head{width:100%;border:0;background:none;box-shadow:none;min-height:0;padding:13px 16px;cursor:pointer;
+    display:grid;grid-template-columns:30px minmax(0,1fr) 190px 20px;gap:14px;align-items:center;text-align:left;font-family:inherit;color:var(--ink);}
+  .debrief-head:hover{background:var(--paper);}
+  .debrief-head .n{width:30px;height:30px;display:grid;place-items:center;border:2px solid var(--ink);border-radius:50%;
+    font-family:"Space Mono",monospace;font-weight:700;font-size:.8rem;background:var(--surface);}
+  .debrief-row.open .debrief-head .n{background:var(--magenta);color:#fff;}
+  .debrief-head .qt{font-weight:700;font-size:1.02rem;line-height:1.3;min-width:0;}
+  .debrief-head .sign{font-family:"Space Mono",monospace;font-weight:700;color:var(--ink-soft);text-align:center;}
+  .debrief-strip{display:flex;height:12px;border:2px solid var(--ink);border-radius:8px;overflow:hidden;}
+  .debrief-strip i{display:block;height:100%;}
+  .debrief-peek{display:flex;gap:7px;align-items:baseline;overflow:hidden;white-space:nowrap;
+    font-family:"Bricolage Grotesque",serif;font-weight:800;}
+  .debrief-detail{border-top:2px solid var(--ink);background:var(--paper);padding:16px;}
+  .debrief-detail .cloud{min-height:0;padding:6px 0;}
+  body.projecting .debrief-head .qt{font-size:min(2.4vw,1.6rem);}
+  body.projecting .debrief-head{grid-template-columns:40px minmax(0,1fr) 240px 26px;}
+  body.projecting .debrief-detail .cloud{font-size:1.7rem;}
+  body.projecting #poll-debrief-stage{display:block;min-height:0;}
+  body.projecting .debrief-q .poll-q{font-size:min(3vw,2rem);}
   .proj-exit{position:fixed;top:12px;right:14px;z-index:60;font-size:.78rem;padding:7px 12px;min-height:0;opacity:.3;}
   .proj-exit:hover{opacity:1;}
   body:not(.projecting) .proj-exit{display:none;}
@@ -91,6 +130,8 @@
   /* student vote screen */
   .vote-opt{display:block;width:100%;text-align:left;margin-bottom:10px;font-size:1.05rem;}
   .vote-opt.chosen{background:var(--magenta);color:#fff;}
+  .done-tick{width:86px;height:86px;margin:4px auto 16px;display:grid;place-items:center;border:3px solid var(--success);
+    border-radius:50%;background:var(--success-soft);color:var(--success);font-size:2.6rem;font-weight:700;line-height:1;}
   .vote-locked{background:var(--amber-soft);border:2px solid var(--amber);color:var(--amber);border-radius:12px;padding:12px;font-weight:700;text-align:center;}
   .vote-done{background:var(--success-soft);border:2px solid var(--success);color:var(--success);border-radius:12px;padding:16px;font-weight:700;text-align:center;}
   .screen{display:none;min-height:100vh;padding:22px 18px 40px;}
@@ -136,17 +177,30 @@
   .slider:before{content:"";position:absolute;height:16px;width:16px;left:4px;top:4px;background:#fff;border:2px solid var(--ink);border-radius:50%;transition:.15s;}
   input:checked + .slider{background:var(--magenta);}
   input:checked + .slider:before{transform:translateX(20px);}
-  .q-palette{display:grid;grid-template-columns:repeat(auto-fill,minmax(44px,1fr));gap:6px;margin:14px 0;}
-  .q-palette button{padding:0;height:44px;font-family:"Space Mono",monospace;font-size:.85rem;background:#fff;color:var(--ink);box-shadow:2px 2px 0 var(--ink);border-radius:10px;}
-  .q-palette button.answered{background:var(--success-soft);border-color:var(--success);color:var(--success);}
-  .q-palette button.current{background:var(--magenta);border-color:var(--ink);color:#fff;}
-  .q-palette button.locked{background:var(--paper-2);color:var(--ink-soft);cursor:not-allowed;box-shadow:none;}
+  /* Position bar replaces the old 44px number grid: one segment per question, so a 30-question
+     test is still one line. Tap a segment to jump. */
+  .q-bar{display:flex;gap:3px;margin:12px 0 4px;}
+  .q-bar button{flex:1;min-width:0;padding:0;height:22px;min-height:0;border:none;border-radius:3px;
+    box-shadow:none;background:transparent;position:relative;}
+  .q-bar button i{position:absolute;left:0;right:0;top:8px;height:6px;border-radius:3px;background:var(--paper-2);display:block;}
+  .q-bar button.answered i{background:var(--success);}
+  .q-bar button.current i{background:var(--magenta);top:6px;height:10px;}
+  .q-bar button.locked i{background:var(--ink-soft);opacity:.45;}
+  .q-nav{display:flex;gap:10px;align-items:stretch;margin-top:14px;}
+  .q-nav .prev{width:64px;flex:none;padding:0;font-size:1.25rem;}
+  .q-nav .next{flex:1;font-size:1.05rem;}
+  /* Handing in is a different kind of act from answering: dark ink, magenta shadow, never the
+     magenta fill students tap all through the test. */
+  .btn-handin{width:100%;margin-top:10px;background:var(--ink);color:#fff;border:2px solid var(--ink);
+    box-shadow:3px 3px 0 var(--magenta);font-size:1rem;}
+  .btn-handin:hover{background:#25252e;}
   @keyframes qIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:none;}}
   .q-enter{animation:qIn .28s ease-out both;}
   @media (prefers-reduced-motion:reduce){ .q-enter{animation:none !important;} }
   .option-btn{display:block;width:100%;text-align:left;background:#fff;border:2px solid var(--ink);border-radius:12px;padding:14px;margin-bottom:9px;font-size:1rem;font-weight:600;box-shadow:3px 3px 0 var(--ink);}
   .option-btn.selected{border-color:var(--magenta);background:var(--magenta-soft);color:var(--magenta);box-shadow:3px 3px 0 var(--magenta);}
-  .qimg{max-width:100%;border:2px solid var(--ink);border-radius:12px;margin:10px 0;display:block;}
+  .qimg{max-width:100%;border:2px solid var(--ink);border-radius:12px;box-shadow:4px 4px 0 var(--ink);
+    margin:12px auto 14px;display:block;}
   .order-list{margin:6px 0;}
   .order-item{display:flex;align-items:center;gap:10px;padding:12px 14px;border:2px solid var(--ink);border-radius:12px;margin-bottom:8px;background:#fff;font-size:1rem;font-weight:600;box-shadow:3px 3px 0 var(--ink);touch-action:manipulation;}
   .order-item .grip{cursor:grab;color:var(--ink-soft);font-size:1.2rem;line-height:1;user-select:none;}
@@ -231,6 +285,18 @@
   .tip label{color:#fff;}
   .tip input[type=text]{margin-bottom:4px;}
   .tip #quiz-school-checks{border:none;padding:0;color:#fff;}
+  /* Type as a chip row, filtered to the bank you're in — no dropdown mixing quiz and poll kinds */
+  .type-chips{display:flex;flex-wrap:wrap;gap:7px;margin:2px 0 4px;}
+  .type-chip{border:2px solid var(--ink);border-radius:20px;background:#fff;color:var(--ink);
+    padding:6px 13px;font-family:inherit;font-size:.88rem;font-weight:600;min-height:0;box-shadow:none;cursor:pointer;}
+  .type-chip:hover{background:var(--paper-2);}
+  .type-chip.on{background:var(--magenta);color:#fff;font-weight:700;}
+  /* Points and time: inline and small, not full-width stacked fields */
+  .qe-meta{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
+  .qe-meta label{margin:0;font-size:.8rem;white-space:nowrap;}
+  .qe-meta input{width:74px;margin:0;}
+  .mtile .ico{color:var(--ink);opacity:.8;}
+  .mtile .exts{font-family:"Space Mono",monospace;font-size:.58rem;letter-spacing:.08em;color:var(--ink-soft);}
   .editor-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
   .editor-head h2{margin:0;}
   .field-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
@@ -312,16 +378,19 @@
   .wait-card{overflow:hidden;}
   .wait-pop{animation:waitPop .5s cubic-bezier(.2,.8,.2,1) both;}
   .wait-d1{animation-delay:.1s;} .wait-d2{animation-delay:.2s;}
-  .wait-orb{position:relative;width:74px;height:74px;margin:2px auto 18px;display:grid;place-items:center;}
-  .wait-orb span{position:absolute;inset:0;border:2px solid var(--magenta);border-radius:50%;animation:waitRing 2.1s ease-out infinite;}
-  .wait-orb span:nth-child(2){animation-delay:.7s;}
-  .wait-orb span:nth-child(3){position:relative;inset:auto;width:16px;height:16px;background:var(--magenta);border:none;animation:waitPulse 2.1s ease-in-out infinite;}
+  /* three dots, in the app's own ink-outlined vocabulary — reads as "your teacher is about to speak" */
+  .wait-beacon{display:flex;gap:14px;justify-content:center;margin:10px auto 22px;}
+  .wait-beacon span{width:22px;height:22px;border:2px solid var(--ink);border-radius:50%;background:var(--magenta);
+    animation:waitBeacon 1.5s cubic-bezier(.4,0,.6,1) infinite;}
+  .wait-beacon span:nth-child(2){animation-delay:.18s;}
+  .wait-beacon span:nth-child(3){animation-delay:.36s;}
+  @keyframes waitBeacon{0%,70%,100%{transform:translateY(0);opacity:.45;}35%{transform:translateY(-9px);opacity:1;}}
   .wait-dots{font-style:normal;letter-spacing:.08em;}
   .wait-dots i{font-style:normal;animation:waitDot 1.4s infinite both;}
   .wait-dots i:nth-child(2){animation-delay:.2s;} .wait-dots i:nth-child(3){animation-delay:.4s;}
   .wait-cta{animation:ctaIn .35s cubic-bezier(.2,.9,.3,1.3) both, ctaNudge 3.4s 1s ease-in-out infinite;}
   @media (prefers-reduced-motion:reduce){
-    .wait-pop,.wait-cta,.wait-orb span,.wait-dots i{animation:none !important;}
+    .wait-pop,.wait-cta,.wait-beacon span,.wait-dots i{animation:none !important;}
   }
 
   /* Student results & feedback */
@@ -406,7 +475,7 @@
   </div>
   <div class="duo">
     <div class="card">
-      <h2>Schools</h2>
+      <h2>Add/Remove Schools</h2>
       <p class="sub">Every quiz and poll is assigned to one or more schools. Teachers pick a school first, then a quiz or poll.</p>
       <div class="row">
         <input type="text" id="school-add-name" placeholder="e.g. ESC Lyon Business School" style="flex:2;">
@@ -416,7 +485,7 @@
     </div>
     <div class="duo-col">
       <div class="card">
-        <h2>Quiz Bank</h2>
+        <h2>Test Creator</h2>
         <p class="sub">Marked tests teachers can run. Load one to edit it, or start fresh.</p>
         <select id="quiz-library-select"><option value="">— select a saved quiz —</option></select>
         <div class="btn-row">
@@ -427,7 +496,7 @@
         <button class="btn-primary" style="width:100%;margin-top:12px;" onclick="newSet('quiz')">+ Create a New Quiz</button>
       </div>
       <div class="card" style="margin-top:16px;">
-        <h2>Poll Bank</h2>
+        <h2>Poll Creator</h2>
         <p class="sub">Live polls and word clouds for projecting in class. Nothing is marked and no results are kept.</p>
         <select id="poll-library-select"><option value="">— select a saved poll —</option></select>
         <div class="btn-row">
@@ -472,45 +541,31 @@
     <div class="duo-col">
       <div class="card" id="qe-card" style="display:none;">
         <div class="editor-head">
-          <h2>Edit Question</h2>
           <span class="badge" id="qe-counter">1 of 1</span>
+          <button class="btn-danger" style="min-height:0;padding:7px 12px;font-size:.85rem;" title="Delete this question" onclick="editorDeleteCurrent()">&#128465; Delete</button>
         </div>
-        <div class="row" style="align-items:center;">
-          <button class="btn-outline" style="flex:1;" onclick="editorPrev()">&larr; Prev</button>
-          <button class="btn-outline" style="flex:1;" onclick="editorNext()">Next &rarr;</button>
-          <button class="btn-danger" style="flex:0 0 auto;" title="Delete this question" onclick="editorDeleteCurrent()">&#128465;</button>
-        </div>
-        <label>Type</label>
-        <select id="qe-type" onchange="renderQEditorOptions()">
+        <textarea id="qe-text" placeholder="Type the question..." style="font-size:1.1rem;font-weight:700;line-height:1.35;min-height:84px;"></textarea>
+        <div class="type-chips" id="qe-type-chips"></div>
+        <select id="qe-type" onchange="renderQEditorOptions()" style="display:none;">
           <option value="mcq" data-kind="quiz">Multiple Choice</option>
           <option value="tf" data-kind="quiz">True / False</option>
           <option value="text" data-kind="quiz">Short Text Answer</option>
-          <option value="numeric" data-kind="quiz">Numeric Answer</option>
           <option value="order" data-kind="quiz">Puzzle — drag to order</option>
           <option value="poll" data-kind="poll">Poll — live vote (no right answer)</option>
           <option value="cloud" data-kind="poll">Word Cloud — live words</option>
         </select>
-        <div class="field-pair">
-          <div id="qe-points-wrap">
-            <label>Points</label>
-            <input type="number" id="qe-points" value="1" min="0">
-          </div>
-          <div>
-            <label>Time (s)</label>
-            <input type="number" id="qe-qtime" value="0" min="0">
-          </div>
+        <div class="qe-meta" style="margin-top:4px;">
+          <span id="qe-points-wrap"><label for="qe-points">Points</label> <input type="number" id="qe-points" value="1" min="0"></span>
+          <span><label for="qe-qtime">Time limit (s)</label> <input type="number" id="qe-qtime" value="0" min="0"></span>
         </div>
-        <label>Question text</label>
-        <textarea id="qe-text" placeholder="Type the question..."></textarea>
         <label>Media <small class="hint" style="display:inline;">&middot; optional &mdash; drag a file onto a tile, click to browse, or paste an image</small></label>
         <div class="mtiles">
           <div class="mtile" id="qe-image-tile" onclick="qMediaBrowse('image')">
             <input type="file" id="qe-image-file" accept="image/*" style="display:none;" onchange="handleQMediaUpload(event,'image')">
             <input type="hidden" id="qe-image-url">
-            <span class="empty">
-              <span class="mk">Image</span><br>
-              <b>Drop or click to add</b><br>
-              <span class="mk">jpg &middot; png &middot; paste</span>
+            <span class="empty" style="display:flex;flex-direction:column;align-items:center;gap:7px;">
+              <svg class="ico" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="8.5" cy="9.5" r="1.6"></circle><path d="M21 16l-5-5-6 6-3-3-4 4"></path></svg>
+              <span class="exts">.jpeg &middot; .png &middot; .gif</span>
             </span>
             <span class="full">
               <img id="qe-image-preview" alt="">
@@ -520,10 +575,9 @@
           <div class="mtile" id="qe-audio-tile" onclick="qMediaBrowse('audio')">
             <input type="file" id="qe-audio-file" accept="audio/*" style="display:none;" onchange="handleQMediaUpload(event,'audio')">
             <input type="hidden" id="qe-audio-url">
-            <span class="empty">
-              <span class="mk">Audio</span><br>
-              <b>Drop or click to add</b><br>
-              <span class="mk">mp3 &middot; max 10 MB</span>
+            <span class="empty" style="display:flex;flex-direction:column;align-items:center;gap:7px;">
+              <svg class="ico" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 14v-4"></path><path d="M7 18V6"></path><path d="M11 15V9"></path><path d="M15 19V5"></path><path d="M19 16v-8"></path></svg>
+              <span class="exts">.mp3 &middot; .m4a</span>
             </span>
             <span class="full">
               <span class="clip"><i style="height:38%"></i><i style="height:70%"></i><i style="height:26%"></i><i style="height:88%"></i><i style="height:48%"></i><i style="height:76%"></i><i style="height:32%"></i><i style="height:62%"></i><i style="height:44%"></i><i style="height:80%"></i><i style="height:28%"></i><i style="height:56%"></i></span>
@@ -535,7 +589,6 @@
         <small id="qe-audio-status" class="hint"></small>
         <div id="qe-options-area"></div>
         <small class="hint">Per-question time limits apply in open navigation: when time runs out the question locks and the student moves on. Ignored in teacher-paced mode.</small>
-        <button class="btn-primary" style="width:100%;margin-top:14px;" onclick="editorDone()">Save Question</button>
       </div>
       <div class="tip">
         <div class="tip-label" id="quiz-save-label">Save as quiz</div>
@@ -591,14 +644,14 @@
       <h1>Teacher — Home</h1>
       <p class="sub">Start a new session, or review past results. A join code is generated when you launch.</p>
       <div class="stack" style="margin-top:16px;">
-        <button class="btn-primary" onclick="teacherCreateSession()">New Session</button>
+        <button class="btn-primary" onclick="teacherCreateSession()">Launch Test</button>
         <button class="btn-secondary" onclick="pollCreateSession()">New Poll</button>
-        <button class="btn-outline" onclick="openHistory()">Past Quizzes &amp; Results</button>
+        <button class="btn-outline" onclick="openHistory()">Test Archive</button>
       </div>
     </div>
     <div class="tip">
       <div class="tip-label">Tip</div>
-      <p>Click <b>New Session</b> to pick a quiz and launch &mdash; then watch the roster on the live dashboard fill in on its own.</p>
+      <p>Click <b>Launch Test</b> to pick a quiz and launch &mdash; then watch the roster on the live dashboard fill in on its own.</p>
     </div>
   </div>
 </div>
@@ -610,7 +663,7 @@
     <a class="linklike" onclick="showScreen('screen-teacher-login')">&larr; Back</a>
   </div>
   <div class="card">
-    <h1>Past Quizzes</h1>
+    <h1>Test Archive</h1>
     <p class="sub">Every test you've run in the last 6 months, most recent first. Download any run's results as CSV.</p>
     <div id="history-list"><p class="sub">Loading…</p></div>
     <small class="hint" style="margin-top:14px;">Reports are automatically archived and deleted after 6 months. Download anything you need to keep before then.</small>
@@ -633,7 +686,7 @@
   </div>
   <div class="duo">
   <div class="card">
-    <h1>New Session</h1>
+    <h1>Launch Test</h1>
     <p class="sub">Pick a quiz, confirm settings, then launch.</p>
   </div>
   <div class="duo-col">
@@ -668,7 +721,7 @@
       <label style="margin:0;">Overall time limit (min &middot; 0 = none)</label>
       <input type="number" id="opt-time-limit" value="0" min="0" class="mono" style="width:90px;text-align:center;">
     </div>
-    <small class="hint" style="margin-bottom:16px;">Per-question limits only apply in free navigation &mdash; the question locks when time runs out.</small>
+    <small class="hint" id="opt-time-limit-hint" style="margin-bottom:16px;">Per-question limits only apply in free navigation &mdash; the question locks when time runs out.</small>
     <button class="btn-primary" style="width:100%;" onclick="teacherStartTest()">Open Waiting Room &amp; Launch &rarr;</button>
   </div>
   </div>
@@ -832,6 +885,7 @@
     <button class="btn-primary" title="Next question" onclick="pollAdvance(1)">&rarr;</button>
     <button class="btn-warn" id="poll-proj-lock" onclick="pollToggleLock()">&#128274; Lock</button>
     <button class="btn-secondary" id="poll-proj-reveal" onclick="pollToggleReveal()">Reveal</button>
+    <button class="btn-outline" id="poll-proj-qr" title="Show the join code for latecomers" onclick="openQRFullscreen('poll')">&#9783; Join code</button>
   </div>
   <div class="top-nav wide proj-hide" style="max-width:1140px;">
     <span class="nav-l">
@@ -844,12 +898,17 @@
     </span>
   </div>
   <div class="poll-wrap">
+    <div class="poll-banner" id="poll-banner">
+      <span class="lbl">Poll</span>
+      <h2 id="poll-title">&mdash;</h2>
+      <span class="badge proj-hide" id="poll-title-meta"></span>
+    </div>
     <!-- lobby: shown until the teacher starts -->
     <div class="card center proj-hide" id="poll-lobby">
       <div class="step-label" style="margin-bottom:14px;">Scan to join</div>
-      <div id="poll-qr" style="display:flex;justify-content:center;cursor:zoom-in;" title="Tap to enlarge for scanning" onclick="openQRFullscreen()"></div>
+      <div id="poll-qr" style="display:flex;justify-content:center;cursor:zoom-in;" title="Tap to enlarge for scanning" onclick="openQRFullscreen('poll')"></div>
       <p class="join-code" id="poll-join-code"></p>
-      <p class="sub" id="poll-lobby-count">0 connected</p>
+      <div class="lobby-count"><b id="poll-lobby-count">0</b><span id="poll-lobby-count-label">students connected</span></div>
       <div class="row">
         <button class="btn-outline btn-mini" style="font-size:.8rem;letter-spacing:0;" onclick="copyQRImage('#poll-qr', event)">Copy QR image</button>
         <button class="btn-outline btn-mini" style="font-size:.8rem;letter-spacing:0;" onclick="copyPollJoinLink()">Copy join link</button>
@@ -867,13 +926,15 @@
             <span class="badge" id="poll-timer" style="display:none;"></span>
           </div>
           <h2 class="poll-q" id="poll-question">—</h2>
-          <img id="poll-img" class="poll-media" style="display:none;" alt="">
-          <div id="poll-audio-wrap"></div>
         </div>
         <div class="poll-tally">
           <b id="poll-count-big">0</b>
           <span class="poll-count" id="poll-response-count">responses</span>
         </div>
+      </div>
+      <div class="poll-media-wrap">
+        <img id="poll-img" class="poll-media" style="display:none;" alt="">
+        <div id="poll-audio-wrap"></div>
       </div>
       <div id="poll-results"></div>
     </div>
@@ -888,10 +949,37 @@
       <div class="btn-row" style="margin-top:12px;">
         <button class="btn-warn" id="poll-lock-btn" onclick="pollToggleLock()">&#128274; Lock Question</button>
         <button class="btn-secondary" id="poll-reveal-btn" onclick="pollToggleReveal()">Reveal Results</button>
+        <button class="btn-outline" title="Show the join code for latecomers" onclick="openQRFullscreen('poll')">&#9783; Join code</button>
         <button class="btn-outline" onclick="pollToggleProject(true)">Project</button>
       </div>
       <small class="hint" id="poll-roster-hint" style="margin-top:10px;"></small>
       <div id="poll-roster" style="margin-top:8px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- POLL DEBRIEF (after Close poll — read from memory, nothing left in the database) -->
+<div class="screen" id="screen-poll-debrief">
+  <button class="btn-outline proj-exit" onclick="pollToggleProject(false)">Exit projection (Esc)</button>
+  <div class="poll-wrap">
+    <div class="top-nav wide proj-hide" style="max-width:1140px;">
+      <span class="nav-l"><span class="badge">Poll finished</span></span>
+      <span class="nav-r">
+        <a class="linklike" onclick="pollToggleProject(true)">Project</a>
+        <a class="linklike" onclick="pollDebriefDone()">Done &mdash; back Home</a>
+      </span>
+    </div>
+    <div class="poll-stage" id="poll-debrief-stage">
+      <h1 class="poll-q" style="margin-bottom:4px;">Poll debrief</h1>
+      <p class="sub proj-hide" id="poll-debrief-sub"></p>
+      <div id="poll-debrief-body"></div>
+    </div>
+    <div class="card proj-hide" style="margin-top:16px;max-width:1140px;">
+      <small class="hint" id="poll-debrief-note"></small>
+      <div class="btn-row" style="margin-top:10px;">
+        <button class="btn-outline" onclick="pollToggleProject(true)">Project this debrief</button>
+        <button class="btn-primary" onclick="pollDebriefDone()">Done</button>
+      </div>
     </div>
   </div>
 </div>
@@ -912,12 +1000,24 @@
   </div>
 </div>
 
+<!-- STUDENT: POLL FINISHED -->
+<div class="screen" id="screen-poll-done">
+  <div class="card center wait-card">
+    <div class="done-tick wait-pop">&#10003;</div>
+    <h1 class="wait-pop wait-d1">That's the poll done</h1>
+    <p class="wait-pop wait-d1" style="font-weight:700;font-size:1.05rem;margin:2px 0 0;"><b id="pd-count">0 of 0</b> questions answered</p>
+    <p class="sub wait-pop wait-d2" style="margin-top:14px;font-weight:700;">You can put your phone away.</p>
+  </div>
+</div>
+
 <!-- STUDENT JOIN -->
 <div class="screen" id="screen-student-join">
   <div class="card">
     <h1>Join</h1>
     <label>Session code</label>
-    <input type="text" id="s-session-code" placeholder="Ask your teacher">
+    <input type="text" id="s-session-code" placeholder="Ask your teacher" maxlength="10"
+           inputmode="text" autocapitalize="characters" autocorrect="off" autocomplete="off" spellcheck="false"
+           style="text-transform:uppercase;" oninput="formatSessionCode(this)">
     <!-- Hidden until we know the session actually wants a name: an anonymous poll never does. -->
     <div id="join-names" style="display:none;">
       <label>Surname (family name)</label>
@@ -936,7 +1036,7 @@
 <!-- STUDENT WAITING -->
 <div class="screen" id="screen-student-waiting">
   <div class="card center wait-card">
-    <div class="wait-orb"><span></span><span></span><span></span></div>
+    <div class="wait-beacon" aria-hidden="true"><span></span><span></span><span></span></div>
     <h1 class="wait-pop">You're in!</h1>
     <p class="wait-pop wait-d1"><b id="wait-name"></b> — session <b id="wait-code"></b></p>
     <p class="sub wait-pop wait-d2" id="wait-status">Waiting for your teacher to start the test<i class="wait-dots"><i>.</i><i>.</i><i>.</i></i></p>
@@ -961,8 +1061,13 @@
     <div id="q-answer-area"></div>
   </div>
   <div id="q-palette-wrap" class="card" style="margin-top:16px;">
-    <div class="q-palette" id="q-palette"></div>
-    <button class="btn-primary" style="width:100%;" onclick="studentConfirmSubmit()">Finish &amp; Submit Test</button>
+    <div class="q-bar" id="q-bar"></div>
+    <p class="sub center" style="font-family:'Space Mono',monospace;font-size:.68rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;margin:0;">Tap the bar to jump</p>
+    <div class="q-nav">
+      <button class="btn-outline prev" id="q-prev" onclick="goToQuestion(STUDENT.currentPos-1)" title="Previous question">&larr;</button>
+      <button class="btn-primary next" id="q-next" onclick="goToQuestion(STUDENT.currentPos+1)">Next question &rarr;</button>
+    </div>
+    <button class="btn-handin" onclick="studentConfirmSubmit()">Hand in my test</button>
   </div>
   <div id="q-paced-nav" class="card" style="margin-top:16px;display:none;">
     <p class="sub center">Your teacher controls when the test moves to the next question.</p>
@@ -1227,13 +1332,14 @@ function paintQuestionMedia(q, imgId, audioWrapId){
   if(aw) aw.innerHTML = (q && q.audio) ? '<audio controls preload="metadata" src="'+escapeHtml(q.audio)+'"></audio>' : "";
 }
 function metaFlag(meta, name, idx){ return !!metaMap(meta,name)[String(idx)]; }
-/* Reveal is tri-state, not a plain flag: the question's own "show results live" setting is
-   the default, and the teacher's Reveal/Hide button overrides it either way. Without this,
-   a live question could never be hidden again mid-discussion. */
+/* Reveal is tri-state, not a plain flag: results are revealed by default, the question's own
+   "hide results until I press Reveal" setting flips that default, and the teacher's
+   Reveal/Hide button overrides either of them. Without this, a live question could never be
+   hidden again mid-discussion. */
 function pollRevealState(meta, idx, q){
   const m=metaMap(meta,"revealed"), k=String(idx);
   if(Object.prototype.hasOwnProperty.call(m,k)) return !!m[k];
-  return !!(q && q.showLive);
+  return !(q && q.hideResults);
 }
 
 const Backend = {
@@ -1631,6 +1737,7 @@ window.addEventListener("DOMContentLoaded", () => {
   const joinCode = new URLSearchParams(location.search).get("join");
   if(joinCode){
     document.getElementById("s-session-code").value = joinCode.toUpperCase();
+    formatSessionCode(document.getElementById("s-session-code"));
     showScreen("screen-student-join");
     // Scanning the QR resolves the session straight away: an anonymous poll is joined in one
     // step, and anything needing a name reveals the name boxes instead.
@@ -1667,6 +1774,23 @@ function genSessionCode(){
   const dd=String(d.getDate()).padStart(2,"0"), mm=String(d.getMonth()+1).padStart(2,"0"), yy=String(d.getFullYear()).slice(-2);
   return a+"-"+dd+mm+yy;
 }
+
+/* Join codes are ABC-DDMMYY. Students type them on a phone, so the field does the work:
+   uppercase, drop anything that isn't a letter or digit, and put the dash in itself.
+   Pasting "abc-180926" or "abc180926" both normalise to "ABC-180926". */
+function formatSessionCode(el){
+  const raw=(el.value||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+  let letters="", digits="";
+  for(const ch of raw){
+    if(letters.length<3 && ch>="A" && ch<="Z"){ letters+=ch; continue; }
+    if(letters.length===3 && digits.length<6 && ch>="0" && ch<="9"){ digits+=ch; }
+  }
+  const out = letters + (letters.length===3 ? "-" : "") + digits;
+  if(el.value!==out){
+    el.value=out;
+    try{ el.setSelectionRange(out.length,out.length); }catch(e){}
+  }
+}
 async function teacherCreateSession(){
   const code = genSessionCode();
   TEACHER.sessionCode = code;
@@ -1677,6 +1801,7 @@ async function teacherCreateSession(){
   setupCode.textContent="Code · "+code; setupCode.style.display="inline-block";
   // Reset to "no limit" for every new session — browsers otherwise restore the last value typed.
   document.getElementById("opt-time-limit").value = 0;
+  applyPerQuestionTimerLock();
   teacherResetStep2();
   await loadTeacherQuizList();
   showScreen("screen-teacher-setup");
@@ -1729,7 +1854,25 @@ async function loadQuizForTeacher(){
     status.style.display = "flex";
     document.getElementById("teacher-select-quiz-btn").style.display = "none";
     document.getElementById("setup-step2").style.display = "block";
+    applyPerQuestionTimerLock();
   }catch(e){ alert("Load failed: "+e.message); }
+}
+
+/* An overall limit and per-question limits would run two clocks at once, so the quiz's own
+   timings win: if any question carries one, the overall field is zeroed and locked. */
+const TIMER_HINT_DEFAULT = "Per-question limits only apply in free navigation — the question locks when time runs out.";
+function applyPerQuestionTimerLock(){
+  const fld=document.getElementById("opt-time-limit"), hint=document.getElementById("opt-time-limit-hint");
+  if(!fld||!hint) return;
+  const n=(TEACHER.questions||[]).filter(q=>(parseInt(q.timeLimitSec,10)||0)>0).length;
+  if(n>0){
+    fld.value=0; fld.disabled=true; fld.style.opacity="0.45"; fld.style.cursor="not-allowed";
+    hint.innerHTML="<strong>Overall limit switched off.</strong> "+n+" question"+(n===1?" has":"s have")+
+      " its own time limit, and the two clocks can’t run together. Per-question limits only apply in free navigation — in teacher-paced mode they are ignored.";
+  } else {
+    fld.disabled=false; fld.style.opacity=""; fld.style.cursor="";
+    hint.textContent=TIMER_HINT_DEFAULT;
+  }
 }
 
 /* ============================================================================
@@ -1798,6 +1941,7 @@ async function loadPollSet(){
     const qs=(set.questions||[]).filter(q=>isPollType(q.type));
     if(qs.length===0){ alert("That set has no poll questions in it."); return; }
     POLL.questions=qs.map(q=>Object.assign({},q,{id:q.id||"q_"+uid(6)}));
+    POLL.name=set.name||"Live poll";
     POLL.school=document.getElementById("poll-school-select").value || quizSchools(set)[0] || "";
     status.textContent="✓ Selected — "+POLL.questions.length+" question"+(POLL.questions.length===1?"":"s")+".";
     status.style.display="flex";
@@ -1811,7 +1955,7 @@ async function pollStartSession(){
   const anonymous=document.getElementById("poll-anon").checked;
   POLL.settings={
     kind:"poll", anonymous, status:"waiting", currentIndex:0,
-    school:POLL.school||"",
+    school:POLL.school||"", title:POLL.name||"Live poll",
     teacherName:(TEACHER_USER&&TEACHER_USER.name)||"",
     teacherEmail:(TEACHER_USER&&TEACHER_USER.email)||"",
     locked:{}, revealed:{}, deadlines:{}, removed:{}, startedAt:null
@@ -1821,6 +1965,9 @@ async function pollStartSession(){
   catch(e){ alert("Couldn't open the poll: "+e.message); return; }
   document.getElementById("poll-live-code").textContent=POLL.sessionCode;
   document.getElementById("poll-live-mode").textContent=anonymous?"Anonymous":"Named";
+  document.getElementById("poll-title").textContent=POLL.name||"Live poll";
+  document.getElementById("poll-title-meta").textContent=
+    POLL.questions.length+" question"+(POLL.questions.length===1?"":"s")+(POLL.school?" · "+POLL.school:"");
   document.getElementById("poll-join-code").textContent=POLL.sessionCode;
   document.getElementById("poll-lobby").style.display="block";
   document.getElementById("poll-stage").style.display="none";
@@ -1848,7 +1995,9 @@ function pollWatchParticipants(){
     POLL.participants=r.participants||[];
     const n=POLL.participants.length;
     const lc=document.getElementById("poll-lobby-count");
-    if(lc) lc.textContent = n+" connected";
+    if(lc) lc.textContent = n;
+    const ll=document.getElementById("poll-lobby-count-label");
+    if(ll) ll.textContent = n===1 ? "student connected" : "students connected";
     renderPollStage();
   });
 }
@@ -2092,16 +2241,132 @@ document.addEventListener("keydown", e=>{
 // Deliberately destructive: poll responses are never kept. Deleting the run also frees
 // the join code and leaves no named opinion data behind.
 async function pollClose(){
-  if(!confirm("Close this poll?\n\nAll responses are deleted — there is no export and no way to get them back.")) return;
+  if(!confirm("Close this poll?\n\nStudents are released and every response is deleted from the database. You'll get a debrief on screen for the discussion, but once you leave it the results are gone for good.")) return;
   pollStopTimerTick();
   if(POLL.unsub){ POLL.unsub(); POLL.unsub=null; }
-  if(POLL.projecting) pollToggleProject(false);
+  // Snapshot what we already have in memory. The debrief is rendered from this, so the
+  // database can be purged immediately — the results live only in this tab, until you leave.
+  const snapshot = (POLL.participants||[]).slice();
+  const questions = (POLL.questions||[]).slice();
+  const removed = metaMap(POLL.settings,"removed");
+  const runId = POLL.runId;
   try{
     POLL.settings.status="ended";
-    await Backend.updateMeta(POLL.runId, POLL.settings);   // tells students it's over
-    setTimeout(()=>{ Backend.deleteRun(POLL.runId).catch(e=>console.warn(e)); }, 1500);
+    await Backend.updateMeta(runId, POLL.settings);   // tells students it's over
   }catch(e){ console.warn(e); }
+  // Give the students' listeners a moment to see "ended" before the node disappears.
+  setTimeout(()=>{ Backend.deleteRun(runId).catch(e=>console.warn(e)); }, 1500);
+  renderPollDebrief(questions, snapshot, removed);
+  showScreen("screen-poll-debrief");
+}
+// Leaving the debrief is the point of no return: drop the snapshot as well as the run.
+function pollDebriefDone(){
+  if(POLL.projecting) pollToggleProject(false);
+  POLL.runId=null; POLL.sessionCode=null; POLL.participants=[]; POLL.questions=[]; POLL.settings={};
+  document.getElementById("poll-debrief-body").innerHTML="";
   teacherHome();
+}
+/* ---- debrief ----
+   Built entirely from the in-memory snapshot taken at Close, so it needs nothing from the
+   database and keeps the promise that no poll responses are retained. */
+function renderPollDebrief(questions, participants, removed){
+  const body=document.getElementById("poll-debrief-body");
+  const voters={};
+  participants.forEach(p=>{
+    const v=(p.progress&&p.progress.votes)||{};
+    Object.keys(v).forEach(k=>{ voters[k]=voters[k]||[]; voters[k].push(v[k]); });
+  });
+  const sub=document.getElementById("poll-debrief-sub"); if(sub) sub.textContent="";
+  document.getElementById("poll-debrief-note").textContent =
+    "These results exist only on this screen. They were deleted from the database when you closed the poll, so screenshot anything you want to keep before pressing Done.";
+  body.innerHTML="";
+  if(questions.length===0){ body.innerHTML='<p class="sub">Nothing to show.</p>'; return; }
+
+  const SERIES=["--c1","--c2","--c3","--c4","--c5","--c6","--c7","--c8"];
+  const list=document.createElement("div"); list.className="debrief-list";
+
+  questions.forEach((q,idx)=>{
+    const votes=voters[String(idx)]||[];
+    const row=document.createElement("div"); row.className="debrief-row";
+
+    // --- collapsed head: number, question, a one-line preview of the shape of the answer ---
+    const head=document.createElement("button"); head.className="debrief-head"; head.type="button";
+    const n=document.createElement("span"); n.className="n"; n.textContent=idx+1;
+    const qt=document.createElement("span"); qt.className="qt"; qt.textContent=q.text||"";
+
+    const peek=document.createElement("span");
+    if(votes.length===0){
+      peek.className="debrief-peek";
+      peek.innerHTML='<em style="font-style:normal;font-size:.78rem;font-family:\'Space Mono\',monospace;color:var(--ink-soft);">No responses</em>';
+    } else if(q.type==="cloud"){
+      const counts=pollTallyCloud(votes, removed[String(idx)]);
+      const top=Object.keys(counts).map(k=>[k,counts[k]]).sort((a,b)=>b[1]-a[1]);
+      peek.className="debrief-peek";
+      top.slice(0,2).forEach(([w],i)=>{
+        const em=document.createElement("em");
+        em.style.cssText="font-style:normal;font-size:"+(i?".84rem":"1rem")+";color:var("+SERIES[i]+");";
+        em.textContent=w; peek.appendChild(em);
+      });
+      if(top.length>2){
+        const more=document.createElement("em");
+        more.style.cssText="font-style:normal;font-size:.74rem;color:var(--ink-soft);";
+        more.textContent="+"+(top.length-2); peek.appendChild(more);
+      }
+    } else {
+      const counts=pollTallyChoice(q, votes);
+      peek.className="debrief-strip";
+      Object.keys(counts).forEach((label,i)=>{
+        const seg=document.createElement("i");
+        seg.style.width=(votes.length?Math.round(counts[label]*100/votes.length):0)+"%";
+        seg.style.background="var("+SERIES[i%SERIES.length]+")";
+        seg.title=label+" · "+counts[label];
+        peek.appendChild(seg);
+      });
+    }
+
+    const sign=document.createElement("span"); sign.className="sign"; sign.textContent="+";
+    head.appendChild(n); head.appendChild(qt); head.appendChild(peek); head.appendChild(sign);
+
+    // --- the detail, built once and revealed on click ---
+    const det=document.createElement("div"); det.className="debrief-detail"; det.style.display="none";
+    if(votes.length===0){
+      det.innerHTML='<p class="sub" style="margin:0;">No responses.</p>';
+    } else if(q.type==="cloud"){
+      const counts=pollTallyCloud(votes, removed[String(idx)]);
+      const entries=Object.keys(counts).map(k=>[k,counts[k]]).sort((a,b)=>b[1]-a[1]);
+      if(entries.length===0){ det.innerHTML='<p class="sub" style="margin:0;">No words.</p>'; }
+      else {
+        const max=entries[0][1];
+        const cl=document.createElement("div"); cl.className="cloud";
+        entries.forEach(([word,cnt],i)=>{
+          const sp=document.createElement("span");
+          sp.className="cloud-word"; sp.style.cursor="default";
+          sp.textContent=word;
+          sp.title=cnt+(cnt===1?" mention":" mentions");
+          sp.style.color="var("+SERIES[i%SERIES.length]+")";
+          // em, not rem, so the whole cloud scales with the container in projection mode
+          sp.style.fontSize=(1+1.4*(max>1?(cnt-1)/(max-1):0))+"em";
+          cl.appendChild(sp);
+        });
+        det.appendChild(cl);
+      }
+    } else {
+      renderPollBars(det, pollTallyChoice(q, votes), votes.length);
+    }
+
+    // One question open at a time: the class discusses them one by one.
+    head.onclick=function(){
+      const wasOpen = det.style.display!=="none";
+      list.querySelectorAll(".debrief-detail").forEach(d=>{ d.style.display="none"; });
+      list.querySelectorAll(".debrief-row").forEach(r=>{ r.classList.remove("open"); });
+      list.querySelectorAll(".debrief-head .sign").forEach(s=>{ s.textContent="+"; });
+      if(!wasOpen){ det.style.display="block"; row.classList.add("open"); sign.textContent="\u2212"; }
+    };
+
+    row.appendChild(head); row.appendChild(det);
+    list.appendChild(row);
+  });
+  body.appendChild(list);   // everything starts collapsed
 }
 
 /* ============ SAVED QUIZ LIBRARY (admin) ============ */
@@ -2155,13 +2420,14 @@ function applyBuilderMode(){
   // If the open question is the wrong kind for this mode, drop to the first legal type.
   if(sel.options[sel.selectedIndex] && sel.options[sel.selectedIndex].disabled && firstAllowed) sel.value=firstAllowed;
   document.getElementById("qe-points-wrap").style.display = poll ? "none" : "";   // polls are never marked
+  renderTypeChips();   // the chip row follows the bank we just switched to
   document.getElementById("builder-badge").innerHTML = poll ? "Admin &middot; Poll Builder" : "Admin &middot; Question Builder";
   document.getElementById("quiz-save-label").textContent = poll ? "Save as poll" : "Save as quiz";
   document.getElementById("quiz-save-btn-text").textContent = poll ? "Save Poll" : "Save Quiz";
   document.getElementById("quiz-save-name").placeholder = poll ? "e.g. Session 3 — warm-up poll" : "e.g. Marketing Midterm 2026";
   document.getElementById("quiz-save-note").textContent = poll
-    ? "Saved to the Poll Bank and launched from Teacher Home with “New Poll”."
-    : "Saved to the Quiz Bank and launched with “New Session”.";
+    ? "Saved to the Poll Creator and launched from Teacher Home with “New Poll”."
+    : "Saved to the Test Creator and launched with “Launch Test”.";
 }
 async function saveQuizToLibrary(){
   const mode = BUILDER_MODE;
@@ -2179,9 +2445,9 @@ async function saveQuizToLibrary(){
   const strays = TEACHER.questions.filter(q=> isPollType(q.type) !== (mode==="poll"));
   if(strays.length){
     alert(mode==="poll"
-      ? "A poll can only contain Poll and Word Cloud questions.\n\n"+strays.length+" question(s) here are quiz types — remove them, or save this in the Quiz Bank instead."
+      ? "A poll can only contain Poll and Word Cloud questions.\n\n"+strays.length+" question(s) here are quiz types — remove them, or save this in the Test Creator instead."
       : "A quiz can't contain Poll or Word Cloud questions — they have no correct answer, so they can't be marked.\n\n"+
-        "Remove those "+strays.length+" question(s), or save this in the Poll Bank instead.");
+        "Remove those "+strays.length+" question(s), or save this in the Poll Creator instead.");
     return;
   }
   try{
@@ -2404,22 +2670,22 @@ function renderQBank(){
     document.getElementById("qe-card").style.display="none";
     return;
   }
-  const TAGS={mcq:"MCQ",tf:"T/F",text:"TEXT",numeric:"NUM",order:"ORDER",poll:"POLL",cloud:"CLOUD"};
+  const TAGS={mcq:"MCQ",tf:"T/F",text:"TEXT",order:"ORDER",poll:"POLL",cloud:"CLOUD"};
   TEACHER.questions.forEach((q,i)=>{
     const div=document.createElement("div");
     div.className="qbank-item"+(i===EDIT_INDEX?" active":"");
-    // Save the open question before jumping to another one, or edits made since the last
-    // "Save Question" would be thrown away without warning.
+    // Commit the open question before jumping to another one, or edits made to it
+    // would be thrown away without warning.
     div.onclick=()=>{ if(i!==EDIT_INDEX && EDIT_INDEX>=0 && EDIT_INDEX<TEACHER.questions.length && !commitCurrentQuestion()) return; openQuestionEditor(i); };
     const num=document.createElement("span"); num.className="qnum"; num.textContent=String(i+1).padStart(2,"0");
     const txt=document.createElement("span"); txt.className="qtxt"; txt.textContent=q.text||"(no text yet)";
     const tag=document.createElement("span"); tag.className="qtag"; tag.textContent=TAGS[q.type]||"?";
     div.appendChild(num); div.appendChild(txt);
-    // Make the live-results setting visible at a glance, so a lost tick is obvious.
-    if(isPollType(q.type) && q.showLive){
-      const lv=document.createElement("span"); lv.className="qtag"; lv.textContent="LIVE";
-      lv.style.background="var(--success-soft)"; lv.style.borderColor="var(--success)"; lv.style.color="var(--success)";
-      lv.title="Results show live (no Reveal needed)";
+    // Results are live by default now, so flag the exception instead: a lost tick stays obvious.
+    if(isPollType(q.type) && q.hideResults){
+      const lv=document.createElement("span"); lv.className="qtag"; lv.textContent="HIDDEN";
+      lv.style.background="var(--amber-soft)"; lv.style.borderColor="var(--amber)"; lv.style.color="var(--amber)";
+      lv.title="Results stay hidden until you press Reveal";
       div.appendChild(lv);
     }
     div.appendChild(tag);
@@ -2446,6 +2712,7 @@ function openQuestionEditor(i){
 }
 function writeQuestionToForm(q){
   document.getElementById("qe-type").value = q.type || "mcq";
+  renderTypeChips();
   document.getElementById("qe-text").value = q.text || "";
   document.getElementById("qe-image-url").value = q.image || "";
   document.getElementById("qe-audio-url").value = q.audio || "";
@@ -2482,7 +2749,6 @@ function readQuestionFromForm(){
     if(accepted.length===0){ alert("Add at least one acceptable answer."); return null; }
     q.correct=accepted; q.caseSensitive=document.getElementById("text-casesens").checked;
   }
-  else if(type==="numeric"){ const n=parseFloat(document.getElementById("num-correct").value); if(isNaN(n)){ alert("Enter the correct number."); return null; } q.correct=n; q.tolerance=parseFloat(document.getElementById("num-tol").value)||0; }
   else if(type==="order"){
     const items=[]; document.querySelectorAll("#order-items .qe-answer-row input[type=text]").forEach(inp=>{ const v=inp.value.trim(); if(v) items.push(v); });
     if(items.length<2){ alert("Add at least 2 items (in the correct order)."); return null; }
@@ -2491,18 +2757,35 @@ function readQuestionFromForm(){
   else if(type==="poll"){
     const opts=[]; document.querySelectorAll("#poll-opts .qe-answer-row input[type=text]").forEach(inp=>{ const v=inp.value.trim(); if(v) opts.push(v); });
     if(opts.length<2){ alert("A poll needs at least 2 choices."); return null; }
-    q.options=opts; q.showLive=document.getElementById("poll-showlive").checked;
+    q.options=opts; q.hideResults=document.getElementById("poll-hideresults").checked;
     q.points=0; q.correct=null;   // opinion vote: nothing to mark
   }
   else if(type==="cloud"){
     q.maxWords=Math.max(1,Math.min(3,parseInt(document.getElementById("cloud-maxwords").value,10)||1));
-    q.showLive=document.getElementById("cloud-showlive").checked;
+    q.hideResults=document.getElementById("cloud-hideresults").checked;
     q.points=0; q.correct=null;
   }
   return q;
 }
 function commitCurrentQuestion(){ const q=readQuestionFromForm(); if(!q) return false; TEACHER.questions[EDIT_INDEX]=q; return true; }
 
+// The chip row mirrors the (hidden) type select, showing only the kinds valid for this bank.
+const TYPE_LABELS={mcq:"Multiple choice",tf:"True / False",text:"Short text",order:"Puzzle",poll:"Poll",cloud:"Word cloud"};
+function renderTypeChips(){
+  const box=document.getElementById("qe-type-chips");
+  const sel=document.getElementById("qe-type");
+  if(!box||!sel) return;
+  const kind = (typeof BUILDER_MODE!=="undefined" && BUILDER_MODE==="poll") ? "poll" : "quiz";
+  box.innerHTML="";
+  [...sel.options].filter(o=>o.dataset.kind===kind).forEach(o=>{
+    const b=document.createElement("button");
+    b.type="button";
+    b.className="type-chip"+(o.value===sel.value?" on":"");
+    b.textContent=TYPE_LABELS[o.value]||o.textContent;
+    b.onclick=()=>{ sel.value=o.value; renderTypeChips(); renderQEditorOptions(); };
+    box.appendChild(b);
+  });
+}
 function renderQEditorOptions(q){
   q = q || {};
   const type=document.getElementById("qe-type").value;
@@ -2523,11 +2806,7 @@ function renderQEditorOptions(q){
     const accepted=(q.type==="text"&&Array.isArray(q.correct))?q.correct:null;
     if(accepted&&accepted.length){ accepted.forEach(a=>addTextAnswer(a)); } else { addTextAnswer(); }
     document.getElementById("text-casesens").checked = (q.type==="text") ? (q.caseSensitive!==false) : true;
-  } else if(type==="numeric"){
-    const cor=(q.type==="numeric"&&q.correct!==undefined)?q.correct:"";
-    const tol=(q.type==="numeric"&&q.tolerance!==undefined)?q.tolerance:0;
-    area.innerHTML='<label>Correct number</label><input type="number" id="num-correct" step="any" value="'+cor+'"><label>Tolerance (+/-, optional)</label><input type="number" id="num-tol" step="any" value="'+tol+'">';
-  } else if(type==="order"){
+    } else if(type==="order"){
     area.innerHTML='<label>Items in the CORRECT order (students see them shuffled and drag to reorder)</label><div id="order-items"></div>'+
       '<button type="button" class="btn-outline" onclick="addOrderItem()">+ Add item</button>';
     const items=(q.type==="order"&&q.items)?q.items:null;
@@ -2535,11 +2814,11 @@ function renderQEditorOptions(q){
   } else if(type==="poll"){
     area.innerHTML='<label>Choices (no correct answer &mdash; this is an opinion vote)</label><div id="poll-opts"></div>'+
       '<button type="button" class="btn-outline" onclick="addPollOption()">+ Add choice</button>'+
-      '<div class="toggle-row" style="margin-top:10px;"><span>Show results live<br><small class="hint">Off = the class sees only a response counter until you press Reveal</small></span>'+
-      '<label class="switch"><input type="checkbox" id="poll-showlive"><span class="slider"></span></label></div>';
+      '<div class="toggle-row" style="margin-top:10px;"><span>Hide results until I press Reveal<br><small class="hint">On = the class sees only a response counter until you press Reveal</small></span>'+
+      '<label class="switch"><input type="checkbox" id="poll-hideresults"><span class="slider"></span></label></div>';
     const opts=(q.type==="poll"&&q.options)?q.options:null;
     if(opts&&opts.length){ opts.forEach(o=>addPollOption(o)); } else { addPollOption(); addPollOption(); }
-    document.getElementById("poll-showlive").checked = (q.type==="poll") ? !!q.showLive : false;
+    document.getElementById("poll-hideresults").checked = (q.type==="poll") ? !!q.hideResults : false;
   } else if(type==="cloud"){
     const mw=(q.type==="cloud"&&q.maxWords)?q.maxWords:1;
     area.innerHTML='<label>Words per student</label>'+
@@ -2547,9 +2826,9 @@ function renderQEditorOptions(q){
       '<option value="2"'+(mw==2?" selected":"")+'>Up to 2 words</option>'+
       '<option value="3"'+(mw==3?" selected":"")+'>Up to 3 words</option></select>'+
       '<small class="hint">Words are matched ignoring capitals and accents, so &ldquo;Assurance&rdquo; and &ldquo;assurance&rdquo; combine into one entry.</small>'+
-      '<div class="toggle-row" style="margin-top:10px;"><span>Show results live<br><small class="hint">Off = the cloud stays hidden until you press Reveal</small></span>'+
-      '<label class="switch"><input type="checkbox" id="cloud-showlive"><span class="slider"></span></label></div>';
-    document.getElementById("cloud-showlive").checked = (q.type==="cloud") ? !!q.showLive : false;
+      '<div class="toggle-row" style="margin-top:10px;"><span>Hide results until I press Reveal<br><small class="hint">On = the cloud stays hidden until you press Reveal</small></span>'+
+      '<label class="switch"><input type="checkbox" id="cloud-hideresults"><span class="slider"></span></label></div>';
+    document.getElementById("cloud-hideresults").checked = (q.type==="cloud") ? !!q.hideResults : false;
   }
 }
 function addPollOption(value){
@@ -2580,9 +2859,7 @@ function addOrderItem(value){
   if(value!==undefined) row.querySelector("input[type=text]").value=value;
   wrap.appendChild(row);
 }
-// Editor navigation
-function editorPrev(){ if(!commitCurrentQuestion()) return; if(EDIT_INDEX>0) openQuestionEditor(EDIT_INDEX-1); else alert("This is the first question."); }
-function editorNext(){ if(!commitCurrentQuestion()) return; if(EDIT_INDEX<TEACHER.questions.length-1) openQuestionEditor(EDIT_INDEX+1); else alert("This is the last question. Use “+ Add” to make another."); }
+// Editor navigation — the question list beside the editor is how you move between questions.
 function editorAddQuestion(){ if(!commitCurrentQuestion()) return; TEACHER.questions.push(blankQuestion()); openQuestionEditor(TEACHER.questions.length-1); }
 function editorDeleteCurrent(){
   if(!confirm("Delete this question?")) return;
@@ -2590,7 +2867,6 @@ function editorDeleteCurrent(){
   if(TEACHER.questions.length===0){ EDIT_INDEX=-1; renderQBank(); return; }
   openQuestionEditor(Math.min(EDIT_INDEX, TEACHER.questions.length-1));
 }
-function editorDone(){ if(!commitCurrentQuestion()) return; renderQBank(); }
 function exportQuestionsJSON(){
   const blob=new Blob([JSON.stringify(TEACHER.questions,null,2)],{type:"application/json"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="questions.json"; a.click();
@@ -2610,7 +2886,7 @@ function importQuestionsPrompt(){
       if(keep.length===0){
         alert(BUILDER_MODE==="poll"
           ? "That file has no poll questions in it."
-          : "That file contains only poll questions — import it from the Poll Bank instead.");
+          : "That file contains only poll questions — import it from the Poll Creator instead.");
         return;
       }
       TEACHER.questions=TEACHER.questions.concat(keep); renderQBank();
@@ -2636,8 +2912,8 @@ function importFromExcel(){
       const dropped=questions.length-keep.length;
       if(keep.length===0){
         alert(BUILDER_MODE==="poll"
-          ? "That sheet has no poll questions.\n\nSet Type to “poll” or “cloud”, or import it into the Quiz Bank instead."
-          : "That sheet contains only poll questions.\n\nImport it from the Poll Bank instead (Admin → + Create a New Poll).");
+          ? "That sheet has no poll questions.\n\nSet Type to “poll” or “cloud”, or import it into the Test Creator instead."
+          : "That sheet contains only poll questions.\n\nImport it from the Poll Creator instead (Admin → + Create a New Poll).");
         return;
       }
       TEACHER.questions=TEACHER.questions.concat(keep); renderQBank();
@@ -2668,8 +2944,17 @@ function parseQuizRows(rows){
     if(isPollType(type)){
       // Poll questions are never marked, so Points and Correct are ignored on import.
       q.points=0; q.correct=null;
-      const sl=get(row,"ShowLive").toLowerCase();
-      q.showLive = (sl==="true"||sl==="yes"||sl==="1");
+      // Results are revealed by default. New sheets use HideResults; older ones carried
+      // ShowLive (blank = hidden), so honour that when HideResults isn't present at all.
+      const hasCol=(name)=>Object.keys(row).some(k=>k.trim().toLowerCase()===name.toLowerCase());
+      const yes=(v)=>(v==="true"||v==="yes"||v==="1"||v==="y"||v==="x");
+      if(hasCol("HideResults")){
+        q.hideResults = yes(get(row,"HideResults").toLowerCase());
+      } else if(hasCol("ShowLive")){
+        q.hideResults = !yes(get(row,"ShowLive").toLowerCase());
+      } else {
+        q.hideResults = false;
+      }
       if(type==="poll"){
         const opts=["OptionA","OptionB","OptionC","OptionD","OptionE"].map(c=>get(row,c)).filter(Boolean);
         if(opts.length<2){ errors.push("Row "+rowNum+": poll needs at least 2 choices in OptionA..E."); return; }
@@ -2825,18 +3110,24 @@ function copyJoinLink(){
   navigator.clipboard ? navigator.clipboard.writeText(url).then(()=>alert("Link copied:\n"+url)) : prompt("Copy this link:",url);
 }
 // Enlarge the QR to (near) full screen so the class can scan it from a distance.
-function openQRFullscreen(){
+// Enlarge the join QR. A poll and a test each have their own run and code, so the caller
+// says which ("poll" from the poll screens); otherwise the live test's code is used.
+function openQRFullscreen(which){
+  const isPoll = (which==="poll") || (!which && !!POLL.runId && isScreenActive("screen-poll-live"));
+  const code = isPoll ? POLL.sessionCode : TEACHER.sessionCode;
+  const url  = isPoll ? pollJoinUrl() : getJoinUrl();
   const overlay=document.getElementById("qr-overlay");
   const holder=document.getElementById("qr-overlay-code"); holder.innerHTML="";
-  document.getElementById("qr-overlay-text").textContent=TEACHER.sessionCode||"";
-  if(location.protocol!=="file:" && typeof QRCode!=="undefined" && TEACHER.sessionCode){
+  document.getElementById("qr-overlay-text").textContent=code||"";
+  if(location.protocol!=="file:" && typeof QRCode!=="undefined" && code){
     const s=Math.max(220, Math.min(Math.min(window.innerWidth, window.innerHeight)-180, 440));
-    new QRCode(holder,{text:getJoinUrl(),width:s,height:s,correctLevel:QRCode.CorrectLevel.M});
+    new QRCode(holder,{text:url,width:s,height:s,correctLevel:QRCode.CorrectLevel.M});
   } else {
     holder.innerHTML='<p class="sub" style="max-width:320px;">QR needs the hosted URL. Students can type the code above.</p>';
   }
   overlay.style.display="flex";
 }
+function isScreenActive(id){ const el=document.getElementById(id); return !!(el && el.classList && el.classList.contains("active")); }
 function closeQRFullscreen(){ document.getElementById("qr-overlay").style.display="none"; }
 // Read the rendered QR (canvas or img) as a PNG blob.
 function getQRBlob(sel, cb){
@@ -2972,9 +3263,7 @@ function renderDashboardList(){
     const prog=participantProgress(p, TEACHER.questions);
     const nm=document.createElement("span"); nm.style.cssText="min-width:0;overflow:hidden;";
     nm.innerHTML='<b style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
-      +escapeHtml(displayName(p.surname,p.firstName))+'</b>'
-      +'<small class="prog-num"><em class="ok">&#10003;'+prog.correct+'</em> <em class="no">&#10007;'+prog.wrong+'</em>'
-      +' &middot; '+prog.answered+'/'+prog.total+'</small>';
+      +escapeHtml(displayName(p.surname,p.firstName))+'</b>';
     nm.title=displayName(p.surname,p.firstName);
     who.appendChild(av); who.appendChild(nm);
 
@@ -3321,12 +3610,11 @@ function pollStudentWatch(){
 function pollStudentEnd(){
   if(PSTU.unsub){ PSTU.unsub(); PSTU.unsub=null; }
   if(PSTU.timerInt){ clearInterval(PSTU.timerInt); PSTU.timerInt=null; }
-  document.getElementById("pv-qpos").textContent="Finished";
-  document.getElementById("pv-timer").style.display="none";
-  document.getElementById("pv-question").textContent="Thanks — the poll is over.";
   paintQuestionMedia(null, "pv-img", "pv-audio-wrap");
-  document.getElementById("pv-body").innerHTML='<div class="vote-done">You can put your phone away.</div>';
-  document.getElementById("pv-status").textContent="";
+  // A closed poll gets its own screen: the question card has nothing left to say.
+  const answered=Object.keys(PSTU.votes||{}).length, total=(PSTU.questions||[]).length;
+  document.getElementById("pd-count").textContent=answered+" of "+total;
+  showScreen("screen-poll-done");
 }
 function pollStudentTick(){
   const pill=document.getElementById("pv-timer");
@@ -3693,15 +3981,28 @@ function selectAnswer(val,btn){
   refreshPalette(); syncProgress();
 }
 function renderPalette(){
-  const wrap=document.getElementById("q-palette"); wrap.innerHTML="";
+  const wrap=document.getElementById("q-bar");
+  if(!wrap) return;
+  wrap.innerHTML="";
+  const total=STUDENT.order.length;
   STUDENT.order.forEach((_,i)=>{
     const answered=STUDENT.answers[i]!==undefined && STUDENT.answers[i]!=="";
-    const b=document.createElement("button"); b.textContent=i+1;
+    const b=document.createElement("button"); b.type="button";
     const lockedCls=(STUDENT.qLocked&&STUDENT.qLocked[i])?"locked ":"";
     b.className=lockedCls+(answered?"answered ":"")+(i===STUDENT.currentPos?"current":"");
+    b.title="Question "+(i+1)+(answered?" · answered":"");
+    b.setAttribute("aria-label", b.title);
+    b.appendChild(document.createElement("i"));
     b.onclick=()=>{ if(!STUDENT.paced) goToQuestion(i); };
     wrap.appendChild(b);
   });
+  const prev=document.getElementById("q-prev"), next=document.getElementById("q-next");
+  if(prev) prev.disabled = STUDENT.currentPos<=0;
+  if(next){
+    const last = STUDENT.currentPos>=total-1;
+    next.disabled = last;
+    next.textContent = last ? "Last question" : "Next question \u2192";
+  }
 }
 function refreshPalette(){ renderPalette(); }
 
@@ -3888,5 +4189,7 @@ async function studentSubmitTest(auto){
   showScreen("screen-student-feedback");
 }
 </script>
+
+
 </body>
 </html>
