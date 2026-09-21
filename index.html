@@ -478,8 +478,8 @@
       <h2>Add/Remove Schools</h2>
       <p class="sub">Every quiz and poll is assigned to one or more schools. Teachers pick a school first, then a quiz or poll.</p>
       <div class="row">
-        <input type="text" id="school-add-name" placeholder="e.g. ESC Lyon Business School" style="flex:2;">
-        <button class="btn-outline" style="flex:0 0 auto;" onclick="addSchoolUI()">Add School</button>
+        <input type="text" id="school-add-name" placeholder="e.g. ESC Lyon Business School" style="flex:2;" data-owner-only>
+        <button class="btn-outline" style="flex:0 0 auto;" onclick="addSchoolUI()" data-owner-only>Add School</button>
       </div>
       <div id="school-list" style="margin-top:10px;"></div>
     </div>
@@ -491,7 +491,7 @@
         <div class="btn-row">
           <button class="btn-outline" onclick="loadSetFromLibrary('quiz')">Load / Edit</button>
           <button class="btn-outline" onclick="exportSavedSet('quiz')">Export</button>
-          <button class="btn-outline" onclick="deleteSetFromLibrary('quiz')">Delete</button>
+          <button class="btn-outline" onclick="deleteSetFromLibrary('quiz')" data-owner-only>Delete</button>
         </div>
         <button class="btn-primary" style="width:100%;margin-top:12px;" onclick="newSet('quiz')">+ Create a New Quiz</button>
       </div>
@@ -502,11 +502,31 @@
         <div class="btn-row">
           <button class="btn-outline" onclick="loadSetFromLibrary('poll')">Load / Edit</button>
           <button class="btn-outline" onclick="exportSavedSet('poll')">Export</button>
-          <button class="btn-outline" onclick="deleteSetFromLibrary('poll')">Delete</button>
+          <button class="btn-outline" onclick="deleteSetFromLibrary('poll')" data-owner-only>Delete</button>
         </div>
         <button class="btn-secondary" style="width:100%;margin-top:12px;" onclick="newSet('poll')">+ Create a New Poll</button>
       </div>
-      <div class="tip">
+      <div class="card" style="margin-top:16px;" data-owner-only>
+        <h2>Teacher Accounts</h2>
+        <p class="sub">Owners can delete results, manage schools and add teachers. Teachers can do everything else.</p>
+        <div id="teacher-list" style="margin:12px 0;"></div>
+        <details style="margin-top:12px;">
+          <summary style="cursor:pointer;font-weight:600;">+ Add a teacher</summary>
+          <div style="margin-top:10px;">
+            <input type="text" id="teacher-add-name" placeholder="Full name" style="width:100%;margin-bottom:8px;">
+            <input type="email" id="teacher-add-email" placeholder="name@school.com" autocomplete="off" style="width:100%;margin-bottom:8px;">
+            <input type="text" id="teacher-add-pass" placeholder="Starting password (6+ characters)" autocomplete="off" style="width:100%;margin-bottom:8px;">
+            <select id="teacher-add-role" style="width:100%;margin-bottom:10px;">
+              <option value="user">Teacher — run tests, build quizzes</option>
+              <option value="owner">Owner — also delete results and manage accounts</option>
+            </select>
+            <button class="btn-primary" style="width:100%;" onclick="addTeacherUI()">Create account</button>
+            <p id="teacher-add-status" class="sub" style="margin:10px 0 0;"></p>
+            <small class="hint">They sign in with this email and password straight away. Removing someone here blocks their access; deleting the login itself is done in the Firebase console.</small>
+          </div>
+        </details>
+      </div>
+      <div class="tip" data-owner-only>
         <div class="tip-label">Report retention</div>
         <p>Teachers only see the last 6 months of results. Run this once a term to download a backup of everything older, then permanently remove it from the database.</p>
         <button class="btn-ghost" onclick="archiveOldReports()">Download Backup &amp; Purge Old Reports</button>
@@ -643,6 +663,12 @@
     <div class="card">
       <h1>Teacher — Home</h1>
       <p class="sub">Start a new session, or review past results. A join code is generated when you launch.</p>
+      <!-- Shown only when this teacher has a run still in progress — see refreshOpenRunBanner(). -->
+      <div id="home-rejoin" style="display:none;margin-top:16px;padding:14px;border:2px solid var(--success);background:var(--success-soft);border-radius:12px;">
+        <div style="font-weight:700;color:var(--success);margin-bottom:4px;">Session still running</div>
+        <div id="home-rejoin-detail" class="sub" style="margin:0 0 10px;"></div>
+        <button class="btn-primary" style="width:100%;" onclick="rejoinOpenRun()">Rejoin this session</button>
+      </div>
       <div class="stack" style="margin-top:16px;">
         <button class="btn-primary" onclick="teacherCreateSession()">Launch Test</button>
         <button class="btn-secondary" onclick="pollCreateSession()">New Poll</button>
@@ -652,6 +678,7 @@
     <div class="tip">
       <div class="tip-label">Tip</div>
       <p>Click <b>Launch Test</b> to pick a quiz and launch &mdash; then watch the roster on the live dashboard fill in on its own.</p>
+      <p style="margin-top:10px;">Closed the app by accident? A running session stays live for 12 hours &mdash; reopen the app and a <b>Rejoin</b> button appears here.</p>
     </div>
   </div>
 </div>
@@ -706,6 +733,10 @@
       <label class="switch"><input type="checkbox" id="opt-paced"><span class="slider"></span></label>
     </div>
     <div class="toggle-row">
+      <span>Team mode<br><small class="hint">Students are split into random teams; the class is ranked by team at the end</small></span>
+      <label class="switch"><input type="checkbox" id="opt-teams" onchange="onTeamsToggle()"><span class="slider"></span></label>
+    </div>
+    <div class="toggle-row">
       <span>Randomize question order per student</span>
       <label class="switch"><input type="checkbox" id="opt-rand-q"><span class="slider"></span></label>
     </div>
@@ -755,7 +786,21 @@
   <div class="card">
     <div class="step-label" style="margin-bottom:12px;">Test control</div>
     <div id="dash-lobby">
-      <p class="sub">Waiting room is open. Students who join appear in the list below. When everyone is connected, start the test — all students begin together.</p>
+      <p class="sub">Waiting room is open. Students who join appear in the list below. When everyone is connected, start the test &mdash; all students begin together.</p>
+      <!-- Team controls: adjustable right up to the moment the test starts, then fixed. -->
+      <div id="dash-teams-box" style="display:none;margin:14px 0;padding:14px;border:2px solid var(--ink);border-radius:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+          <label style="margin:0;font-weight:700;">Number of teams</label>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <button class="btn-outline nav-sq" onclick="nudgeTeamCount(-1)" aria-label="Fewer teams">&minus;</button>
+            <span class="qpill mono" id="dash-team-count">2</span>
+            <button class="btn-outline nav-sq" onclick="nudgeTeamCount(1)" aria-label="More teams">+</button>
+          </div>
+        </div>
+        <p class="sub" id="dash-team-note" style="margin:10px 0 0;"></p>
+        <div id="dash-team-preview" style="margin-top:10px;"></div>
+        <button class="btn-outline" style="width:100%;margin-top:10px;" onclick="reshuffleTeams()">Shuffle teams again</button>
+      </div>
       <button class="btn-primary" style="width:100%;" onclick="teacherBeginQuiz()">&#9654; Start Test for Everyone</button>
     </div>
     <div id="dash-running" style="display:none;">
@@ -811,6 +856,13 @@
       <div class="card center" style="padding:14px;"><div style="font-size:1.6rem;font-weight:800;" id="recap-count">0</div><small class="hint">Students</small></div>
       <div class="card center" style="padding:14px;"><div style="font-size:1.6rem;font-weight:800;" id="recap-avg">0%</div><small class="hint">Average</small></div>
       <div class="card center" style="padding:14px;"><div style="font-size:1.6rem;font-weight:800;" id="recap-alerts">0</div><small class="hint">Cheat alerts</small></div>
+    </div>
+    <!-- Team leaderboard: only drawn for a team run, and placed above the individual table
+         because in team mode that is the result the class is waiting for. -->
+    <div id="recap-teams" style="display:none;margin-top:20px;">
+      <h2 style="margin:0 0 2px;">Team leaderboard</h2>
+      <p class="sub" style="margin-bottom:10px;">Each team scores the average of its members&rsquo; percentages. Students who answered nothing aren&rsquo;t counted in their team&rsquo;s average.</p>
+      <div id="recap-team-list"></div>
     </div>
     <h2 style="margin:20px 0 2px;">Student scores</h2>
     <p class="sub" style="margin-bottom:0;">Ranked high to low. Students who hadn't submitted when you ended the test are marked incomplete.</p>
@@ -1040,8 +1092,12 @@
     <h1 class="wait-pop">You're in!</h1>
     <p class="wait-pop wait-d1"><b id="wait-name"></b> — session <b id="wait-code"></b></p>
     <p class="sub wait-pop wait-d2" id="wait-status">Waiting for your teacher to start the test<i class="wait-dots"><i>.</i><i>.</i><i>.</i></i></p>
-    <button class="btn-primary wait-cta" id="wait-start-btn" style="display:none;width:100%;font-size:1.2rem;" onclick="studentBeginTest()">&#9654; Start Your Test</button>
-    <small class="hint" id="wait-start-hint" style="display:none;">Tap the button to begin. If your teacher enabled monitoring, the test opens in full screen.</small>
+    <!-- The student no longer starts the test themselves; the teacher's launch opens it for
+         everyone. These two nodes are kept (permanently hidden) so the status-poll code can
+         address them without null checks, and so a future opt-in start has somewhere to live. -->
+    <button class="btn-primary wait-cta" id="wait-start-btn" style="display:none;width:100%;font-size:1.2rem;" hidden>&#9654; Start Your Test</button>
+    <small class="hint" id="wait-start-hint" style="display:none;" hidden>The test will open by itself.</small>
+    <div id="wait-team" style="display:none;margin-top:18px;"></div>
   </div>
 </div>
 
@@ -1104,8 +1160,8 @@
 <div id="fs-overlay" style="display:none;position:fixed;inset:0;background:rgba(26,29,41,.96);z-index:2000;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;">
   <div style="background:#fff;border-radius:16px;padding:28px 24px;max-width:420px;width:100%;">
     <h2 style="margin:0 0 8px;">Full screen required</h2>
-    <p class="sub" style="margin-bottom:18px;">Your test must run in full screen. Tap the button to continue — your answers are safe.</p>
-    <button class="btn-primary" style="width:100%;font-size:1.15rem;" onclick="resumeFullscreen()">Return to Full Screen</button>
+    <p class="sub" style="margin-bottom:18px;">Your test runs in full screen. Tap the button to continue — your answers are safe.</p>
+    <button class="btn-primary" style="width:100%;font-size:1.15rem;" onclick="resumeFullscreen()">Continue in Full Screen</button>
   </div>
 </div>
 
@@ -1160,38 +1216,219 @@ function teacherCheckAllowed(email){
   }
   return null;
 }
-function teacherAcceptUser(user){
+/* ---- Roles ----
+   Two tiers. An OWNER can delete things and manage accounts; a USER can do everything else.
+   The tier lives in the database at teachers/$uid, not in the browser, so the security rules
+   enforce it for real — hiding a button only stops an accident, not a determined person.
+
+   Bootstrap: on a database with no teacher records at all, the first account to sign in
+   becomes the owner and writes its own record. That removes the one manual console step that
+   would otherwise be needed to get started. It is safe here only because accounts cannot be
+   self-registered — an account has to be created by an existing owner (or, the first time, in
+   the Firebase console) before it can sign in at all. */
+function isOwner(){ return !!(TEACHER_USER && TEACHER_USER.role==="owner"); }
+function requireOwner(action){
+  if(isOwner()) return true;
+  alert("Only an owner can "+action+".\n\nAsk whoever manages the app to do it, or to make you an owner.");
+  return false;
+}
+
+async function teacherAcceptUser(user){
   const problem = teacherCheckAllowed(user.email);
-  if(problem){
-    document.getElementById("signin-status").textContent = "✗ " + problem;
-    try{ firebase.auth().signOut().then(()=>{ Backend._authReady = firebase.auth().signInAnonymously(); }); }catch(e){}
-    return false;
-  }
+  if(problem) return teacherRejectUser(problem);
+
   const label = user.displayName || (user.email||"").split("@")[0] || "Teacher";
-  TEACHER_USER = { name: label, email: user.email || "" };
+  let rec=null;
+  try{ rec = await Backend.getTeacher(user.uid); }
+  catch(e){ console.warn("teacher lookup failed", e); }
+
+  if(!rec){
+    // No record. Either this is the very first sign-in on a fresh database (become owner), or
+    // the account exists in Firebase Auth but nobody has granted it access yet (refuse).
+    let count=0;
+    try{ count=(await Backend.countTeachers()).count||0; }catch(e){ count=1; }  // on error, assume not first
+    if(count===0){
+      rec={ email:user.email||"", name:label, role:"owner", active:true, addedAt:Date.now(), addedBy:"bootstrap" };
+      try{ await Backend.setTeacher(user.uid, rec); }
+      catch(e){ return teacherRejectUser("Couldn't set up the first owner account: "+e.message); }
+    } else {
+      return teacherRejectUser("This account hasn't been given access yet. An owner needs to add it in Admin → Teacher Accounts.");
+    }
+  }
+  if(rec.active===false) return teacherRejectUser("This account has been deactivated.");
+
+  TEACHER_USER = { name: rec.name || label, email: user.email || "", uid: user.uid,
+                   role: rec.role==="owner" ? "owner" : "user" };
   const badge=document.getElementById("teacher-identity");
-  if(badge){ badge.textContent = TEACHER_USER.name; badge.style.display="inline-block"; }
+  if(badge){
+    badge.textContent = TEACHER_USER.name + (isOwner() ? " · Owner" : "");
+    badge.style.display="inline-block";
+  }
+  applyRoleVisibility();
   return true;
+}
+
+function teacherRejectUser(message){
+  const st=document.getElementById("signin-status");
+  if(st) st.textContent = "✗ " + message;
+  TEACHER_USER=null;
+  try{ firebase.auth().signOut().then(()=>{ Backend._authReady = firebase.auth().signInAnonymously(); }); }catch(e){}
+  return false;
+}
+
+/* Hides owner-only controls from a plain user. This is presentation only — every one of these
+   actions is also refused by requireOwner() and, in a live database, by the security rules. */
+function applyRoleVisibility(){
+  const owner=isOwner();
+  document.querySelectorAll("[data-owner-only]").forEach(el=>{
+    el.style.display = owner ? "" : "none";
+  });
+}
+
+/* ============ TEACHER ACCOUNTS (owner only) ============
+   Creating a Firebase account normally signs you in as the new user, which would throw the
+   owner out of their own session halfway through adding someone. The way round it is a second,
+   invisible connection to the same Firebase project: the new account is created on that one and
+   immediately signed out of it, leaving the owner's session on the main connection untouched.
+
+   What this cannot do is DELETE a Firebase login — that needs admin credentials no browser
+   should ever hold. "Remove" therefore deactivates: the account survives in Firebase Auth but
+   its teachers/$uid record is switched off, and every rule and screen refuses it. To free the
+   email address for good, delete the user in the Firebase console. */
+let _secondaryApp=null;
+function secondaryAuth(){
+  if(typeof firebase==="undefined" || !firebase.auth) return null;
+  if(!_secondaryApp){
+    try{ _secondaryApp = firebase.initializeApp(firebaseConfig, "acctmaker"); }
+    catch(e){ try{ _secondaryApp = firebase.app("acctmaker"); }catch(e2){ return null; } }
+  }
+  return _secondaryApp.auth();
+}
+
+let TEACHER_LIST=[];
+async function renderTeacherPanel(){
+  const box=document.getElementById("teacher-list");
+  if(!box) return;
+  if(!isOwner()){ box.innerHTML=""; return; }
+  box.innerHTML='<p class="sub">Loading…</p>';
+  try{ TEACHER_LIST=(await Backend.listTeachers()).teachers||[]; }
+  catch(e){ box.innerHTML='<p class="sub">Couldn’t load accounts: '+escapeHtml(e.message)+'</p>'; return; }
+  TEACHER_LIST.sort((a,b)=>String(a.name||a.email||"").localeCompare(String(b.name||b.email||"")));
+  if(!TEACHER_LIST.length){ box.innerHTML='<p class="sub">No accounts yet.</p>'; return; }
+  const me=(TEACHER_USER&&TEACHER_USER.uid)||"";
+  const owners=TEACHER_LIST.filter(t=>t.role==="owner" && t.active!==false).length;
+  box.innerHTML="";
+  TEACHER_LIST.forEach(t=>{
+    const isMe=t.uid===me, off=t.active===false;
+    const row=document.createElement("div");
+    row.className="row";
+    row.style.cssText="align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line,#e5e5e5);"+(off?"opacity:.5;":"");
+    const who=document.createElement("div"); who.style.flex="1";
+    who.innerHTML="<b>"+escapeHtml(t.name||"(no name)")+"</b>"+(isMe?" <span class='sub'>(you)</span>":"")+
+      "<br><small class='sub'>"+escapeHtml(t.email||"")+"</small>";
+    const tag=document.createElement("span"); tag.className="qtag";
+    tag.textContent = off ? "DEACTIVATED" : (t.role==="owner" ? "OWNER" : "TEACHER");
+    if(t.role==="owner" && !off){ tag.style.background="var(--success-soft)"; tag.style.borderColor="var(--success)"; tag.style.color="var(--success)"; }
+    row.appendChild(who); row.appendChild(tag);
+
+    const mk=(label,fn,danger)=>{ const b=document.createElement("button");
+      b.className=danger?"btn-danger":"btn-outline"; b.style.cssText="flex:0 0 auto;padding:6px 10px;font-size:.85rem;";
+      b.textContent=label; b.onclick=fn; row.appendChild(b); return b; };
+
+    if(!off){
+      if(t.role==="owner"){
+        // Never let the last active owner step down — nobody could then manage anything.
+        const b=mk("Make teacher", ()=>setTeacherRole(t, "user"));
+        if(owners<=1){ b.disabled=true; b.style.opacity=".4"; b.title="The last owner can't be demoted."; }
+      } else {
+        mk("Make owner", ()=>setTeacherRole(t, "owner"));
+      }
+      mk("Reset password", ()=>sendTeacherReset(t));
+      if(!isMe){
+        const b=mk("Deactivate", ()=>setTeacherActive(t, false), true);
+        if(t.role==="owner" && owners<=1){ b.disabled=true; b.style.opacity=".4"; }
+      }
+    } else {
+      mk("Reactivate", ()=>setTeacherActive(t, true));
+    }
+    box.appendChild(row);
+  });
+}
+
+async function addTeacherUI(){
+  if(!requireOwner("add a teacher account")) return;
+  const st=document.getElementById("teacher-add-status");
+  const name=(document.getElementById("teacher-add-name").value||"").trim();
+  const email=(document.getElementById("teacher-add-email").value||"").trim();
+  const pass=(document.getElementById("teacher-add-pass").value||"");
+  const role=document.getElementById("teacher-add-role").value||"user";
+  if(!name || !email || !pass){ st.textContent="Fill in the name, email and a starting password."; return; }
+  if(pass.length<6){ st.textContent="Firebase needs a password of at least 6 characters."; return; }
+  const auth=secondaryAuth();
+  if(!auth){ st.textContent="Account creation needs Firebase — not available in demo mode."; return; }
+  st.textContent="Creating…";
+  try{
+    const res=await auth.createUserWithEmailAndPassword(email, pass);
+    try{ await res.user.updateProfile({ displayName:name }); }catch(e){}
+    await Backend.setTeacher(res.user.uid, {
+      email, name, role: role==="owner"?"owner":"user", active:true,
+      addedAt:Date.now(), addedBy:(TEACHER_USER&&TEACHER_USER.email)||"" });
+    await auth.signOut();   // leave the side connection empty; the owner's session is untouched
+    document.getElementById("teacher-add-name").value="";
+    document.getElementById("teacher-add-email").value="";
+    document.getElementById("teacher-add-pass").value="";
+    st.textContent="✓ "+name+" added. Tell them their password — they should change it on first sign-in.";
+    renderTeacherPanel();
+  }catch(e){
+    const code=(e&&e.code)||"";
+    st.textContent = code==="auth/email-already-in-use"
+      ? "✗ That email already has an account. If they should have access, it may just need reactivating below."
+      : code==="auth/invalid-email" ? "✗ That email address isn't valid."
+      : code==="auth/weak-password" ? "✗ Password too weak — use at least 6 characters."
+      : "✗ Couldn't create the account: "+((e&&e.message)||e);
+  }
+}
+
+async function setTeacherRole(t, role){
+  if(!requireOwner("change a teacher's role")) return;
+  if(!confirm((role==="owner"?"Make ":"Remove owner rights from ")+(t.name||t.email)+
+    (role==="owner"?" an owner? They'll be able to delete results and manage accounts.":"? They'll keep normal teacher access."))) return;
+  try{ await Backend.setTeacher(t.uid, { role }); renderTeacherPanel(); }
+  catch(e){ alert("Couldn't change the role: "+e.message); }
+}
+
+async function setTeacherActive(t, active){
+  if(!requireOwner("deactivate or reactivate an account")) return;
+  if(!active && !confirm("Deactivate "+(t.name||t.email)+"?\n\nThey'll be signed out and refused access at the next attempt. Their quizzes and past results are kept.\n\nThe Firebase login itself still exists — delete it in the Firebase console to free the email address.")) return;
+  try{ await Backend.setTeacher(t.uid, { active:!!active }); renderTeacherPanel(); }
+  catch(e){ alert("Couldn't update the account: "+e.message); }
+}
+
+async function sendTeacherReset(t){
+  if(!requireOwner("send a password reset")) return;
+  if(!t.email){ alert("No email address on this account."); return; }
+  try{ await firebase.auth().sendPasswordResetEmail(t.email); alert("Password reset email sent to "+t.email+"."); }
+  catch(e){ alert("Couldn't send the reset email: "+e.message); }
 }
 // "I'm the Teacher" — if this browser is already signed in, go straight to the session screen
 // instead of asking for the password again (e.g. after returning Home mid-lesson).
-function goTeacher(){
+async function goTeacher(){
   if(TEACHER_USER){ showScreen("screen-teacher-login"); return; }
   try{
     const u = firebase.auth().currentUser;
-    if(u && !u.isAnonymous && teacherAcceptUser(u)){ showScreen("screen-teacher-login"); return; }
+    if(u && !u.isAnonymous && await teacherAcceptUser(u)){ showScreen("screen-teacher-login"); return; }
   }catch(e){ /* not signed in / Firebase unavailable — fall through to sign-in */ }
   showScreen("screen-teacher-password");
 }
 /* "Home" for a signed-in teacher = the Teacher — Session screen, NOT the role screen.
    Logging out is a separate, explicit action (teacherSignOut). If somehow nobody is
    signed in, fall back to the role screen so the app can't strand the user. */
-function teacherHome(){
+async function teacherHome(){
   if(typeof stopDashboardPolling === "function"){ try{ stopDashboardPolling(); }catch(e){} }
   if(TEACHER_USER){ showScreen("screen-teacher-login"); return; }
   try{
     const u = firebase.auth().currentUser;
-    if(u && !u.isAnonymous && teacherAcceptUser(u)){ showScreen("screen-teacher-login"); return; }
+    if(u && !u.isAnonymous && await teacherAcceptUser(u)){ showScreen("screen-teacher-login"); return; }
   }catch(e){ /* not signed in / Firebase unavailable */ }
   showScreen("screen-role");
 }
@@ -1204,7 +1441,7 @@ async function teacherSignIn(){
   status.textContent="Signing in…";
   try{
     const res = await firebase.auth().signInWithEmailAndPassword(email, pass);
-    if(teacherAcceptUser(res.user)){
+    if(await teacherAcceptUser(res.user)){
       document.getElementById("t-pass").value="";
       status.textContent="";
       showScreen("screen-teacher-login");
@@ -1260,7 +1497,7 @@ async function teacherAuthBoot(){
   }
   const u = firebase.auth().currentUser;
   if(u && !u.isAnonymous){
-    teacherAcceptUser(u);
+    await teacherAcceptUser(u);
     if(status) status.textContent="Signed in as "+(u.email||"")+".";
   }
 }
@@ -1413,6 +1650,9 @@ const Backend = {
     const sessions = Object.values(sessVal).sort((a,b)=>b.runAt-a.runAt).map(r=>({
       runId:r.runId, code:r.code, runAt:r.runAt, school:(r.meta&&r.meta.school)||"",
       teacherName:(r.meta&&r.meta.teacherName)||"",
+      // Carried so Home can spot a run this teacher left open — see findOpenRuns().
+      teacherEmail:(r.meta&&r.meta.teacherEmail)||"",
+      status:(r.meta&&r.meta.status)||"",
       kind:(r.meta&&r.meta.kind)||"quiz",
       studentCount: Object.keys(partVal[r.runId]||{}).length }));
     return { sessions };
@@ -1494,6 +1734,34 @@ const Backend = {
     if(!this.live) return this._demo("removeSchool", {name});
     await this._ready();
     await db.ref("schools/"+schoolKey(name)).remove(); return {ok:true};
+  },
+  /* ---- Teacher accounts & roles ----
+     One record per teacher at teachers/$uid. The uid, not the email, is the key, because the
+     security rules can only test auth.uid — matching on an email string would let anyone who
+     could write their own record grant themselves access. */
+  async listTeachers(){
+    if(!this.live) return this._demo("listTeachers", {});
+    await this._ready();
+    const val = (await db.ref("teachers").once("value")).val() || {};
+    return { teachers: Object.keys(val).map(uid=>Object.assign({uid}, val[uid])) };
+  },
+  async getTeacher(uid){
+    if(!this.live) return this._demo("getTeacher", {uid});
+    await this._ready();
+    const v=(await db.ref("teachers/"+uid).once("value")).val();
+    return v ? Object.assign({uid}, v) : null;
+  },
+  async setTeacher(uid, rec){
+    if(!this.live) return this._demo("setTeacher", {uid, rec});
+    await this._ready();
+    await db.ref("teachers/"+uid).update(rec); return {ok:true};
+  },
+  async countTeachers(){
+    if(!this.live) return this._demo("countTeachers", {});
+    await this._ready();
+    // Used once, to decide whether this is a first-run bootstrap. Reads the node shallowly.
+    const v=(await db.ref("teachers").once("value")).val() || {};
+    return { count: Object.keys(v).length };
   },
   async getConfig(key){
     if(!this.live) return this._demo("getConfig", {key});
@@ -1587,7 +1855,9 @@ const Backend = {
       case "listSessions": {
         const runs = Object.values(s.sessions).sort((a,b)=>b.runAt-a.runAt).map(r=>({
           runId:r.runId, code:r.code, runAt:r.runAt, school:(r.meta&&r.meta.school)||"",
-      teacherName:(r.meta&&r.meta.teacherName)||"",
+          teacherName:(r.meta&&r.meta.teacherName)||"",
+          teacherEmail:(r.meta&&r.meta.teacherEmail)||"",
+          status:(r.meta&&r.meta.status)||"",
           kind:(r.meta&&r.meta.kind)||"quiz",
           studentCount: Object.keys(s.participants[r.runId]||{}).length }));
         return { sessions: runs };
@@ -1613,6 +1883,10 @@ const Backend = {
       case "listQuizzes": { const q=this._quizzes(); return { quizzes: Object.keys(q).map(k=>({key:k,name:q[k].name,schools:quizSchools(q[k]),kind:setKind(q[k]),count:(q[k].questions||[]).length})) }; }
       case "getQuiz": { const q=this._quizzes(); return q[p.key]||null; }
       case "deleteQuiz": { const q=this._quizzes(); delete q[p.key]; this._saveQuizzes(q); return {ok:true}; }
+      case "listTeachers": { const t=s.teachers||{}; return { teachers: Object.keys(t).map(uid=>Object.assign({uid}, t[uid])) }; }
+      case "getTeacher": { const t=s.teachers||{}; return t[p.uid] ? Object.assign({uid:p.uid}, t[p.uid]) : null; }
+      case "setTeacher": { s.teachers=s.teachers||{}; s.teachers[p.uid]=Object.assign({}, s.teachers[p.uid]||{}, p.rec); this._save(s); return {ok:true}; }
+      case "countTeachers": { return { count: Object.keys(s.teachers||{}).length }; }
       case "listSchools": { return { schools: this._schools() }; }
       case "addSchool": { const a=this._schools(); const n=(p.name||"").trim(); if(n && !a.includes(n)){ a.push(n); a.sort((x,y)=>x.localeCompare(y)); this._saveSchools(a); } return {ok:true}; }
       case "removeSchool": { const a=this._schools().filter(x=>x!==p.name); this._saveSchools(a); return {ok:true}; }
@@ -1641,13 +1915,16 @@ function checkTeacherPassword(){
 }
 function openAdmin(){
   showScreen("screen-admin");
+  applyRoleVisibility();  // owner-only cards and buttons, before anything draws into them
   renderQBank();
   loadQuizList();       // fills the admin's quiz-library-select
   renderSchools();      // fills the schools list + the quiz school checkboxes
+  renderTeacherPanel(); // no-op for a plain teacher
   document.getElementById("archive-status").textContent = "";
 }
 // Manual retention: download a JSON backup of every run older than 6 months, then delete them.
 async function archiveOldReports(){
+  if(!requireOwner("purge old reports")) return;
   const st=document.getElementById("archive-status");
   st.textContent="Checking…";
   try{
@@ -1689,9 +1966,12 @@ async function renderSchools(){
   schools.forEach(name=>{
     const div=document.createElement("div"); div.className="student-row";
     div.innerHTML='<span>'+name+'</span>';
-    const btn=document.createElement("button"); btn.className="btn-outline btn-mini"; btn.style.flex="0 0 auto"; btn.textContent="Remove";
-    btn.onclick=()=>removeSchoolUI(name);
-    div.appendChild(btn); list.appendChild(div);
+    if(isOwner()){
+      const btn=document.createElement("button"); btn.className="btn-outline btn-mini"; btn.style.flex="0 0 auto"; btn.textContent="Remove";
+      btn.onclick=()=>removeSchoolUI(name);
+      div.appendChild(btn);
+    }
+    list.appendChild(div);
   });
   // Populate the "assign to school(s)" checkbox list (preserve current ticks if still valid)
   const already = getCheckedSchools();
@@ -1718,11 +1998,13 @@ function setCheckedSchools(names){
   document.querySelectorAll("#quiz-school-checks input[type=checkbox]").forEach(cb=>{ cb.checked=set.has(cb.value); });
 }
 async function addSchoolUI(){
+  if(!requireOwner("add a school")) return;
   const inp=document.getElementById("school-add-name"); const name=inp.value.trim();
   if(!name){ alert("Type a school name first."); return; }
   try{ await Backend.addSchool(name); inp.value=""; renderSchools(); }catch(e){ alert("Add failed: "+e.message); }
 }
 async function removeSchoolUI(name){
+  if(!requireOwner("remove a school")) return;
   if(!confirm('Remove "'+name+'"? Quizzes already assigned to it keep their label until re-saved.')) return;
   try{ await Backend.removeSchool(name); renderSchools(); }catch(e){ alert("Remove failed: "+e.message); }
 }
@@ -1749,6 +2031,12 @@ window.addEventListener("DOMContentLoaded", () => {
 function showScreen(id){
   document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
   document.getElementById(id).classList.add("active");
+  // Teacher Home is reached from half a dozen places (sign-in, Back links, ending a test),
+  // so the check for an abandoned session hangs off the screen change rather than off each
+  // caller. Fire-and-forget: a failed lookup must never block the screen from appearing.
+  if(id==="screen-teacher-login" && typeof refreshOpenRunBanner==="function"){
+    Promise.resolve().then(refreshOpenRunBanner).catch(e=>console.warn(e));
+  }
 }
 function uid(len=6){
   const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; let out="";
@@ -1791,7 +2079,149 @@ function formatSessionCode(el){
     try{ el.setSelectionRange(out.length,out.length); }catch(e){}
   }
 }
+/* ============ OPEN SESSIONS: REJOIN, PROMPT, 12-HOUR EXPIRY ============
+   Closing the browser doesn't end a session — the run lives in the database, and only the
+   teacher's own in-memory state is lost. These helpers find a run this teacher left open so
+   Home can offer it back, warn before a second one is started, and stop a forgotten session
+   lingering indefinitely.
+
+   A run counts as OPEN when it belongs to this teacher, isn't marked ended, and started less
+   than 12 hours ago. The clock runs from the start, not from the last student activity: a test
+   still open half a day later is finished whatever was happening in it. Expiry is decided here
+   rather than by a scheduled job — there is no server to run one — so a stale run is simply
+   treated as closed on sight, and written back as ended the next time this teacher looks. */
+const SESSION_TTL_MS = 12*60*60*1000;
+let OPEN_RUN = null;   // the run currently offered by the Rejoin button, if any
+
+function runIsExpired(s){ return (Date.now() - (s.runAt||0)) > SESSION_TTL_MS; }
+function runIsMine(s){
+  const mine=((TEACHER_USER&&TEACHER_USER.email)||"").toLowerCase();
+  // With no email on the account (the password fallback), ownership can't be established;
+  // offering someone else's live session back would be worse than offering nothing.
+  return !!mine && (s.teacherEmail||"").toLowerCase()===mine;
+}
+function runIsUnfinished(s){ return s.status!=="ended"; }
+
+/* Returns { open:[...], stale:[...] } for this teacher — open runs newest first, plus the
+   expired ones so the caller can tidy them away. */
+async function findOpenRuns(){
+  let sessions=[];
+  try{ const r=await Backend.listSessions(); sessions=r.sessions||[]; }
+  catch(e){ return { open:[], stale:[] }; }
+  const mine=sessions.filter(s=>runIsMine(s) && runIsUnfinished(s));
+  return { open: mine.filter(s=>!runIsExpired(s)), stale: mine.filter(runIsExpired) };
+}
+
+// Mark expired runs ended so they stop being counted, and drop any expired poll's responses —
+// a closed poll keeps nothing, whether it was closed by hand or by the clock.
+async function closeStaleRuns(stale){
+  for(const s of stale){
+    try{
+      const run=await Backend.getRun(s.runId);
+      const meta=Object.assign({}, (run&&run.meta)||{}, { status:"ended", endedBy:"timeout" });
+      await Backend.updateMeta(s.runId, meta);
+      if(s.kind==="poll") await Backend.deleteRun(s.runId);
+    }catch(e){ console.warn("stale close failed", s.runId, e); }
+  }
+}
+
+/* Called whenever Teacher Home is shown. Only an ACTIVE run is offered: a session still sitting
+   in the waiting room has nothing to go back to, and rejoining one would only reopen an empty
+   lobby the teacher had already walked away from. */
+async function refreshOpenRunBanner(){
+  const box=document.getElementById("home-rejoin");
+  if(!box) return;
+  box.style.display="none"; OPEN_RUN=null;
+  const { open, stale } = await findOpenRuns();
+  if(stale.length) closeStaleRuns(stale);
+  const active=open.filter(s=>s.status==="active");
+  if(!active.length) return;
+  const s=active[0];
+  OPEN_RUN=s;
+  const what = s.kind==="poll" ? "Poll" : "Test";
+  document.getElementById("home-rejoin-detail").textContent =
+    what+" "+s.code+" — "+s.studentCount+" student"+(s.studentCount===1?"":"s")+
+    " joined, started "+fmtDate(s.runAt)+".";
+  box.style.display="block";
+}
+
+/* Puts the teacher back on the live dashboard of a run they left. The run's own record is the
+   source of truth — questions, settings and pace all come back from the database, not from
+   whatever this browser last remembered. */
+async function rejoinOpenRun(){
+  if(!OPEN_RUN){ alert("That session is no longer open."); return; }
+  const s=OPEN_RUN;
+  let run=null;
+  try{ run=await Backend.getRun(s.runId); }catch(e){ alert("Couldn't reopen the session: "+e.message); return; }
+  if(!run || !run.meta || run.meta.status==="ended"){ alert("That session has already ended."); refreshOpenRunBanner(); return; }
+  if(s.kind==="poll") return rejoinPollRun(s, run);
+
+  TEACHER.sessionCode = run.code || s.code;
+  TEACHER.runId = s.runId;
+  TEACHER.questions = run.questions || [];
+  TEACHER.settings = run.meta;
+  TEACHER.school = run.meta.school || "";
+  const dashCode=document.getElementById("dash-session-code");
+  if(dashCode) dashCode.textContent = TEACHER.sessionCode;
+  showScreen("screen-teacher-dashboard");
+  restoreDashboardForState();
+  startDashboardPolling();
+}
+
+async function rejoinPollRun(s, run){
+  POLL.sessionCode = run.code || s.code;
+  POLL.runId = s.runId;
+  POLL.questions = run.questions || [];
+  POLL.settings = run.meta;
+  POLL.school = run.meta.school || "";
+  POLL.name = run.meta.name || POLL.name || "";
+  POLL.projecting = false;
+  POLL.participants = [];
+  document.getElementById("poll-live-code").textContent = POLL.sessionCode;
+  document.getElementById("poll-live-mode").textContent = POLL.settings.anonymous ? "Anonymous" : "Named";
+  document.getElementById("poll-title").textContent = POLL.name || "Live poll";
+  document.getElementById("poll-title-meta").textContent =
+    POLL.questions.length+" question"+(POLL.questions.length===1?"":"s")+(POLL.school?" · "+POLL.school:"");
+  document.getElementById("poll-join-code").textContent = POLL.sessionCode;
+  // Rejoin only ever offers an active run, so the stage goes straight back up.
+  document.getElementById("poll-lobby").style.display="none";
+  document.getElementById("poll-stage").style.display="block";
+  document.getElementById("poll-controls").style.display="block";
+  showScreen("screen-poll-live");
+  renderPollQR();
+  pollWatchParticipants();
+  pollStartTimerTick();
+  renderPollStage();
+}
+
+/* Guard in front of starting anything new. Unlike the Rejoin button this also counts a run
+   still in the waiting room, because students may be sitting in that lobby — walking away
+   without ending it would strand them on a screen that never advances. */
+async function confirmNoOpenRun(what){
+  const { open, stale } = await findOpenRuns();
+  if(stale.length) closeStaleRuns(stale);
+  if(!open.length) return true;
+  const s=open[0];
+  const kind = s.kind==="poll" ? "poll" : "test";
+  const where = s.status==="active" ? "in progress" : "waiting for students";
+  const ok = confirm(
+    "You already have a "+kind+" open.\n\n"+
+    s.code+" — "+s.studentCount+" student"+(s.studentCount===1?"":"s")+" joined, "+where+".\n\n"+
+    "Starting a new "+what+" will end it. Any answers already given are kept and will still "+
+    "appear in the archive"+(s.kind==="poll"?", but poll responses are deleted on close as usual":"")+".\n\n"+
+    "End it and continue?");
+  if(!ok) return false;
+  try{
+    const run=await Backend.getRun(s.runId);
+    const meta=Object.assign({}, (run&&run.meta)||{}, { status:"ended", endedBy:"superseded" });
+    await Backend.updateMeta(s.runId, meta);
+    if(s.kind==="poll") await Backend.deleteRun(s.runId);
+  }catch(e){ alert("Couldn't close the old session: "+e.message); return false; }
+  return true;
+}
+
 async function teacherCreateSession(){
+  if(!(await confirmNoOpenRun("test"))) return;
   const code = genSessionCode();
   TEACHER.sessionCode = code;
   TEACHER.runId = null;
@@ -1888,6 +2318,7 @@ let POLL = { sessionCode:null, runId:null, questions:[], settings:{}, school:"",
              participants:[], unsub:null, timerInt:null, projecting:false };
 
 async function pollCreateSession(){
+  if(!(await confirmNoOpenRun("poll"))) return;
   const code = genSessionCode();
   POLL = { sessionCode:code, runId:null, questions:[], settings:{}, school:"", sets:[],
            participants:[], unsub:null, timerInt:null, projecting:false };
@@ -2491,6 +2922,7 @@ async function exportSavedSet(mode){
 }
 function exportSavedQuiz(){ return exportSavedSet("quiz"); }
 async function deleteSetFromLibrary(mode){
+  if(!requireOwner("delete a saved quiz or poll")) return;
   const L = SETLABEL[mode] || SETLABEL.quiz;
   const sel = document.getElementById(L.sel);
   const key = sel.value;
@@ -3005,6 +3437,8 @@ async function teacherStartTest(){
   if(TEACHER.questions.length===0){ alert("Choose a quiz from the dropdown first."); return; }
   const settings={
     paced:document.getElementById("opt-paced").checked,
+    teams:document.getElementById("opt-teams").checked,
+    teamCount:0, teamMap:{},   // filled in when the test actually starts
     randomizeQuestions:document.getElementById("opt-rand-q").checked,
     randomizeAnswers:document.getElementById("opt-rand-a").checked,
     security:document.getElementById("opt-security").checked,
@@ -3021,6 +3455,9 @@ async function teacherStartTest(){
   catch(e){ alert("Couldn't open the waiting room: "+e.message); return; }
   document.getElementById("dash-lobby").style.display="block";
   document.getElementById("dash-running").style.display="none";
+  TEAM_DRAFT={ count:2, map:{} };
+  document.getElementById("dash-teams-box").style.display = settings.teams ? "block" : "none";
+  renderTeamPreview();
   showScreen("screen-teacher-dashboard");
   renderJoinQR();
   startDashboardPolling();
@@ -3032,8 +3469,21 @@ async function teacherBeginQuiz(){
   TEACHER.settings.status="active";
   TEACHER.settings.currentIndex=0;
   TEACHER.settings.startedAt=Date.now();
+  if(TEACHER.settings.teams){
+    // Lock the draw. From here the map only ever grows, for students who join late.
+    TEACHER.settings.teamCount=TEAM_DRAFT.count;
+    TEACHER.settings.teamMap=topUpTeams(Object.assign({}, TEAM_DRAFT.map||{}), DASH_PARTICIPANTS, TEAM_DRAFT.count);
+  }
   try{ await Backend.updateMeta(TEACHER.runId, TEACHER.settings); }
   catch(e){ alert("Couldn't start test: "+e.message); return; }
+  showDashboardRunning();
+  startTeacherCountdown();
+}
+
+/* Dresses the dashboard for a test that is under way. Split out of teacherBeginQuiz so that
+   rejoining a session after closing the app rebuilds exactly the same controls, rather than a
+   second, slightly different version of them that drifts out of step over time. */
+function showDashboardRunning(){
   document.getElementById("dash-mode-note").textContent = TEACHER.settings.paced
     ? "Paced mode: use Next/Previous to move the whole class together."
     : "Free navigation: students move at their own pace.";
@@ -3044,7 +3494,19 @@ async function teacherBeginQuiz(){
   document.getElementById("dash-pause-note").style.display = hasTimers?"block":"none";
   document.getElementById("dash-lobby").style.display="none";
   document.getElementById("dash-running").style.display="block";
-  startTeacherCountdown();
+}
+
+/* Rebuild the dashboard for a run reopened from the Rejoin button. Only active runs are ever
+   offered, but the waiting branch is kept so the function stays honest if that changes. */
+function restoreDashboardForState(){
+  if((TEACHER.settings||{}).status==="active"){
+    showDashboardRunning();
+    startTeacherCountdown();
+  } else {
+    document.getElementById("dash-lobby").style.display="block";
+    document.getElementById("dash-running").style.display="none";
+    renderJoinQR();
+  }
 }
 
 /* ---- Teacher-side countdown (open navigation only — in paced mode the teacher drives the clock) ---- */
@@ -3161,11 +3623,111 @@ async function pacedAdvance(dir){
   document.getElementById("dash-current-q").textContent="Q "+(idx+1)+" / "+TEACHER.questions.length;
   try{ await Backend.updateMeta(TEACHER.runId, TEACHER.settings); }catch(e){ console.warn(e); }
 }
+/* ============ TEAM MODE ============
+   Teams are decided by the teacher's browser in the waiting room and written into the session
+   meta as a plain map of studentId → team name. Nothing else changes: students answer on their
+   own phones exactly as before, and the pooling happens at the end, on the results.
+
+   Keeping the allocation in meta (rather than on each participant record) means one write, and
+   it survives the teacher closing the app — a rejoined session still knows who was on which
+   team. The number of teams can be changed freely while students are still joining; it locks
+   when the test starts, because re-drawing teams over answers already given would change scores
+   retrospectively. Late joiners go to the smallest team so sizes stay level. */
+const TEAM_NAMES = ["Red","Blue","Green","Amber","Purple","Teal","Orange","Pink","Silver","Bronze"];
+const MAX_TEAMS = TEAM_NAMES.length;
+let TEAM_DRAFT = { count:2, map:{} };   // waiting-room state, before it goes into meta
+
+function teamsEnabled(){ return !!(TEACHER.settings && TEACHER.settings.teams); }
+function teamNameAt(i){ return TEAM_NAMES[i % TEAM_NAMES.length]; }
+
+function onTeamsToggle(){
+  const on=document.getElementById("opt-teams").checked;
+  const box=document.getElementById("dash-teams-box");
+  if(box) box.style.display = on ? "block" : "none";
+}
+
+/* Deal the joined students round-robin into `count` teams, in random order. Round-robin rather
+   than random-per-student because random assignment routinely produces a team of one and a team
+   of six in a class of fifteen, which then makes the averages look unfair even though they
+   aren't. */
+function allocateTeams(participants, count){
+  const n=Math.max(2, Math.min(MAX_TEAMS, count|0));
+  const ids=shuffle(participants.map(p=>p.studentId));
+  const map={};
+  ids.forEach((id,i)=>{ map[id]=teamNameAt(i%n); });
+  return map;
+}
+
+// Anyone who joined since the last draw is slotted into whichever team is currently smallest.
+function topUpTeams(map, participants, count){
+  const n=Math.max(2, Math.min(MAX_TEAMS, count|0));
+  const sizes={}; for(let i=0;i<n;i++) sizes[teamNameAt(i)]=0;
+  Object.keys(map).forEach(id=>{ if(sizes[map[id]]!==undefined) sizes[map[id]]++; });
+  participants.forEach(p=>{
+    if(map[p.studentId] && sizes[map[p.studentId]]!==undefined) return;
+    let smallest=teamNameAt(0);
+    for(let i=1;i<n;i++){ const t=teamNameAt(i); if(sizes[t]<sizes[smallest]) smallest=t; }
+    map[p.studentId]=smallest; sizes[smallest]++;
+  });
+  // Drop anyone who left the lobby, and anyone stranded on a team that no longer exists.
+  const present=new Set(participants.map(p=>p.studentId));
+  Object.keys(map).forEach(id=>{ if(!present.has(id) || sizes[map[id]]===undefined) delete map[id]; });
+  return map;
+}
+
+function nudgeTeamCount(delta){
+  const max=Math.max(2, Math.min(MAX_TEAMS, DASH_PARTICIPANTS.length||MAX_TEAMS));
+  TEAM_DRAFT.count=Math.max(2, Math.min(max, (TEAM_DRAFT.count||2)+delta));
+  TEAM_DRAFT.map=allocateTeams(DASH_PARTICIPANTS, TEAM_DRAFT.count);
+  renderTeamPreview();
+}
+function reshuffleTeams(){
+  TEAM_DRAFT.map=allocateTeams(DASH_PARTICIPANTS, TEAM_DRAFT.count);
+  renderTeamPreview();
+}
+
+function renderTeamPreview(){
+  const box=document.getElementById("dash-teams-box");
+  if(!box || box.style.display==="none") return;
+  document.getElementById("dash-team-count").textContent=TEAM_DRAFT.count;
+  const note=document.getElementById("dash-team-note");
+  const n=DASH_PARTICIPANTS.length;
+  note.textContent = n===0
+    ? "Teams are drawn when students join. Change the number any time before you start."
+    : n+" student"+(n===1?"":"s")+" in "+TEAM_DRAFT.count+" teams — about "+Math.ceil(n/TEAM_DRAFT.count)+" each. Locked once the test starts.";
+  const wrap=document.getElementById("dash-team-preview");
+  wrap.innerHTML="";
+  const byTeam={};
+  DASH_PARTICIPANTS.forEach(p=>{
+    const t=TEAM_DRAFT.map[p.studentId]; if(!t) return;
+    (byTeam[t]=byTeam[t]||[]).push(displayName(p.surname,p.firstName));
+  });
+  Object.keys(byTeam).sort().forEach(t=>{
+    const d=document.createElement("div");
+    d.style.cssText="margin:6px 0;font-size:.9rem;";
+    d.innerHTML="<b>"+escapeHtml(t)+"</b> <span class='sub'>("+byTeam[t].length+")</span> — "+escapeHtml(byTeam[t].join(", "));
+    wrap.appendChild(d);
+  });
+}
+
 let DASH_UNSUB=null, DASH_PARTICIPANTS=[];
 function startDashboardPolling(){
   stopDashboardPolling();
   DASH_UNSUB=Backend.subscribeParticipants(TEACHER.runId, r=>{
     DASH_PARTICIPANTS=r.participants||[];
+    // Keep the draft allocation in step with the lobby while students are still arriving.
+    const lobbyOpen = !TEACHER.settings || TEACHER.settings.status!=="active";
+    if(lobbyOpen && document.getElementById("opt-teams") && document.getElementById("opt-teams").checked){
+      TEAM_DRAFT.map=topUpTeams(TEAM_DRAFT.map||{}, DASH_PARTICIPANTS, TEAM_DRAFT.count);
+      renderTeamPreview();
+    } else if(teamsEnabled() && TEACHER.settings.status==="active"){
+      // Running: a student who joins late still needs a team, and it has to reach the database.
+      const before=JSON.stringify(TEACHER.settings.teamMap||{});
+      TEACHER.settings.teamMap=topUpTeams(Object.assign({}, TEACHER.settings.teamMap||{}), DASH_PARTICIPANTS, TEACHER.settings.teamCount||2);
+      if(JSON.stringify(TEACHER.settings.teamMap)!==before){
+        Backend.updateMeta(TEACHER.runId, TEACHER.settings).catch(e=>console.warn(e));
+      }
+    }
     renderDashboardList();
   });
 }
@@ -3262,8 +3824,14 @@ function renderDashboardList(){
     av.textContent=((p.surname||"?")[0]+(p.firstName||"?")[0]).toUpperCase();
     const prog=participantProgress(p, TEACHER.questions);
     const nm=document.createElement("span"); nm.style.cssText="min-width:0;overflow:hidden;";
+    // In team mode the team is shown under the name, so the teacher can see at a glance
+    // whether one team is quietly doing nothing while another races ahead.
+    const teamOf = teamsEnabled()
+      ? ((TEACHER.settings.teamMap||{})[p.studentId]||"")
+      : ((document.getElementById("opt-teams")||{}).checked ? (TEAM_DRAFT.map||{})[p.studentId]||"" : "");
     nm.innerHTML='<b style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'
-      +escapeHtml(displayName(p.surname,p.firstName))+'</b>';
+      +escapeHtml(displayName(p.surname,p.firstName))+'</b>'
+      +(teamOf?'<small class="hint">'+escapeHtml(teamOf)+'</small>':'');
     nm.title=displayName(p.surname,p.firstName);
     who.appendChild(av); who.appendChild(nm);
 
@@ -3341,7 +3909,7 @@ async function showTeacherRecap(){
   stopDashboardPolling();
   let participants=[];
   try{ const r=await Backend.listParticipants(TEACHER.runId); participants=r.participants||[]; }catch(e){ console.warn(e); }
-  RECAP_ROWS=buildEffectiveResults(participants, TEACHER.questions);
+  RECAP_ROWS=buildEffectiveResults(participants, TEACHER.questions, TEACHER.settings);
   let alertTotal=0, pctSum=0, scored=0;
   RECAP_ROWS.forEach(r=>{ alertTotal+=(r.cheatAlerts||[]).length; pctSum+=r.percentage; scored++; });
   document.getElementById("recap-count").textContent=RECAP_ROWS.length;
@@ -3349,7 +3917,48 @@ async function showTeacherRecap(){
   document.getElementById("recap-alerts").textContent=alertTotal;
   RECAP_SORT={ key:"pct", dir:-1 };
   renderRecapTable();
+  renderTeamLeaderboard();
   showScreen("screen-teacher-recap");
+}
+
+/* The team standings, drawn once at the end. Deliberately not shown live: a running total
+   turns the test into a race and the last few minutes into a scramble, and the teams that fall
+   behind early stop trying. Each team expands to show who was in it and what they scored. */
+function renderTeamLeaderboard(){
+  const box=document.getElementById("recap-teams");
+  const list=document.getElementById("recap-team-list");
+  if(!box || !list) return;
+  const standings=computeTeamStandings(RECAP_ROWS);
+  if(!standings.length){ box.style.display="none"; return; }
+  box.style.display="block";
+  list.innerHTML="";
+  const medal=["\uD83E\uDD47","\uD83E\uDD48","\uD83E\uDD49"];
+  standings.forEach(g=>{
+    const det=document.createElement("details");
+    det.style.cssText="border:2px solid var(--ink);border-radius:12px;margin-bottom:8px;padding:10px 14px;"+
+      (g.rank===1?"background:var(--success-soft);":"");
+    const sum=document.createElement("summary");
+    sum.style.cssText="cursor:pointer;display:flex;align-items:center;gap:12px;font-weight:700;";
+    sum.innerHTML='<span style="min-width:2.2em;">'+(medal[g.rank-1]||g.rank)+'</span>'+
+      '<span style="flex:1;">'+escapeHtml(g.team)+'</span>'+
+      '<span class="mono" style="font-size:1.25rem;">'+g.average.toFixed(1)+'%</span>';
+    det.appendChild(sum);
+    const body=document.createElement("div");
+    body.style.cssText="margin-top:10px;font-size:.92rem;";
+    const members=g.members.slice().sort((a,b)=>b.percentage-a.percentage);
+    body.innerHTML=members.map(m=>{
+      const idle=(m.answers||[]).length===0;
+      return '<div style="display:flex;justify-content:space-between;gap:10px;padding:3px 0;'+(idle?'opacity:.55;':'')+'">'+
+        '<span>'+escapeHtml(displayName(m.surname,m.firstName))+(idle?' <small class="hint">(not counted — no answers)</small>':'')+'</span>'+
+        '<span class="mono">'+m.score+'/'+m.totalPossible+' · '+Math.round(m.percentage)+'%</span></div>';
+    }).join("");
+    if(g.idle>0){
+      body.innerHTML+='<p class="sub" style="margin:8px 0 0;">'+g.idle+' member'+(g.idle===1?"":"s")+
+        ' left out of the average — the team is scored on the '+g.scoring+' who answered.</p>';
+    }
+    det.appendChild(body);
+    list.appendChild(det);
+  });
 }
 
 /* ---- Recap table: click any column head to sort (second click reverses) ---- */
@@ -3399,22 +4008,24 @@ function startNewTestFromRecap(){
 }
 
 /* Merge submitted results + progress fallback for disconnected students. Returns an array. */
-function buildEffectiveResults(participants, questions){
+function buildEffectiveResults(participants, questions, meta){
+  const teamMap=(meta && meta.teamMap) || (TEACHER.settings && TEACHER.settings.teamMap) || {};
+  const tag=(p,r)=>{ const t=teamMap[p.studentId]; if(t) r.team=t; return r; };
   return participants.map(p=>{
     const base=p.cheatBaseline||0;  // teacher-cleared alerts are dropped from reports too
     if(p.result){
       const r=Object.assign({status:"Submitted", surname:p.surname, firstName:p.firstName}, p.result);
       r.cheatAlerts=(p.result.cheatAlerts||[]).slice(base);
-      return r;
+      return tag(p,r);
     }
     if(p.progress){
       const scored=scoreAnswers(questions, p.progress.order||[], p.progress.answers||{}, p.progress.timeSpent||{});
-      return { surname:p.surname, firstName:p.firstName, status:"Incomplete (disconnected)",
+      return tag(p, { surname:p.surname, firstName:p.firstName, status:"Incomplete (disconnected)",
         score:scored.score, totalPossible:scored.totalPossible, percentage:scored.percentage,
-        answers:scored.answerRows, cheatAlerts:(p.progress.cheatAlerts||[]).slice(base), finishedAt:p.lastSeen };
+        answers:scored.answerRows, cheatAlerts:(p.progress.cheatAlerts||[]).slice(base), finishedAt:p.lastSeen });
     }
-    return { surname:p.surname, firstName:p.firstName, status:"Joined (no answers)",
-      score:0, totalPossible:0, percentage:0, answers:[], cheatAlerts:[], finishedAt:p.lastSeen };
+    return tag(p, { surname:p.surname, firstName:p.firstName, status:"Joined (no answers)",
+      score:0, totalPossible:0, percentage:0, answers:[], cheatAlerts:[], finishedAt:p.lastSeen });
   });
 }
 
@@ -3423,34 +4034,103 @@ function buildEffectiveResults(participants, questions){
 function exportResultsCSV(){ return buildAndDownloadCSV(TEACHER.runId, TEACHER.sessionCode, TEACHER.questions); }
 // Any run (used by History and the live dashboard):
 async function buildAndDownloadCSV(runId, code, questionsMaybe, schoolMaybe){
-  let questions=questionsMaybe, participants=[], school=schoolMaybe||"";
+  let questions=questionsMaybe, participants=[], school=schoolMaybe||"", runMeta=null;
   try{
-    if(!questions){ const run=await Backend.getRun(runId); questions=(run&&run.questions)||[]; if(run&&run.code) code=run.code; if(run&&run.meta&&run.meta.school) school=run.meta.school; }
+    if(!questions){ const run=await Backend.getRun(runId); questions=(run&&run.questions)||[]; if(run&&run.code) code=run.code; if(run&&run.meta){ if(run.meta.school) school=run.meta.school; runMeta=run.meta; } }
     const r=await Backend.listParticipants(runId); participants=r.participants||[];
   }catch(e){ alert("Couldn't fetch results: "+e.message); return; }
-  const results=buildEffectiveResults(participants, questions).slice().sort(bySurname);
-  const rows=[["Surname","FirstName","School","SessionCode","Status","QuestionNumber","QuestionText","QuestionType",
-    "StudentAnswer","CorrectAnswer","IsCorrect","PointsAwarded","PointsPossible",
-    "TimeSpentSeconds","TotalScore","TotalPossible","Percentage","CheatAlertCount","CheatAlertDetails","FinishedAt"]];
+  const results=buildEffectiveResults(participants, questions, runMeta).slice().sort(bySurname);
+
+  /* One row per student. The per-question detail goes sideways into Q1..Qn, holding the mark
+     awarded, so the sheet sorts, totals and charts without any reshaping. An unanswered
+     question scores 0 — a blank would quietly drop out of an average. The full question text
+     can't fit in a column heading, so it goes in a key block above the table; Excel shows that
+     as a few short rows before the header, which sorting and filtering ignore. */
+  const nQ=questions.length;
+  const qCols=[]; for(let i=0;i<nQ;i++) qCols.push("Q"+(i+1));
+  const rows=[];
+
+  rows.push(["Exam results"]);
+  rows.push(["Session code", code||""]);
+  rows.push(["School", school||""]);
+  rows.push(["Exported", fmtDate(Date.now())]);
+  rows.push(["Students", String(results.length)]);
+  rows.push([]);
+  rows.push(["Question key"]);
+  questions.forEach((q,i)=>rows.push(["Q"+(i+1), q.text||"", q.type||"", "worth "+(q.points||0)+" pt"+((q.points||0)===1?"":"s"), formatCorrect(q)]));
+  rows.push([]);
+
+  rows.push(["Surname","FirstName","School","SessionCode","Team","Status",
+    "TotalScore","TotalPossible","Percentage","TimeTakenSeconds",
+    "CheatAlertCount","CheatAlertDetails","FinishedAt"].concat(qCols));
+
   results.forEach(r=>{
     const alertDetails=(r.cheatAlerts||[]).map(a=>a.type+"@"+new Date(a.time).toLocaleTimeString()).join(" | ");
-    const base=[r.surname||"", r.firstName||"", school, code, r.status||"Submitted"];
-    if((r.answers||[]).length===0){
-      rows.push(base.concat(["","","","","","","",r.score,r.totalPossible,r.percentage.toFixed(1),(r.cheatAlerts||[]).length,alertDetails,r.finishedAt?fmtDate(r.finishedAt):""]));
-    }
-    (r.answers||[]).forEach((ans,i)=>{
-      const q=questions[ans.questionIndex]||{};
-      const ansCell=Array.isArray(ans.answer)?ans.answer.join(" > "):ans.answer;
-      rows.push(base.concat([ i+1, q.text||"", q.type||"", ansCell, formatCorrect(q), ans.isCorrect?"Yes":"No",
-        ans.pointsAwarded, q.points||0, (ans.timeSpentSec||0).toFixed(1), r.score, r.totalPossible, r.percentage.toFixed(1),
-        (r.cheatAlerts||[]).length, alertDetails, r.finishedAt?fmtDate(r.finishedAt):"" ]));
+    // Marks land in the column matching the question's position in the quiz, not the order the
+    // student saw them — randomised question order would otherwise scramble the columns.
+    const marks=new Array(nQ).fill(0);
+    (r.answers||[]).forEach(ans=>{
+      const idx=ans.questionIndex;
+      if(idx>=0 && idx<nQ) marks[idx]=Number(ans.pointsAwarded)||0;
     });
+    const timeTaken=(r.answers||[]).reduce((t,a)=>t+(a.timeSpentSec||0),0);
+    rows.push([ r.surname||"", r.firstName||"", school, code, r.team||"", r.status||"Submitted",
+      r.score, r.totalPossible, r.percentage.toFixed(1), timeTaken.toFixed(1),
+      (r.cheatAlerts||[]).length, alertDetails, r.finishedAt?fmtDate(r.finishedAt):"" ].concat(marks));
   });
+
+  appendTeamBlock(rows, results, nQ);
+
   const csv=rows.map(row=>row.map(csvEscape).join(",")).join("\n");
   const blob=new Blob([csv],{type:"text/csv"});
   const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="exam_results_"+(code||runId)+".csv"; a.click();
 }
 function formatCorrect(q){ if(!q.type) return ""; if(q.type==="text") return (q.correct||[]).join(" / "); if(q.type==="order") return (q.correct||q.items||[]).join(" > "); return q.correct; }
+
+/* Team standings, shared by the end-of-test leaderboard and the CSV so the two can never
+   disagree. A team's score is the AVERAGE of its members' percentages, not the sum of their
+   points: teams are rarely the same size, and a team of four would otherwise beat a team of
+   three on headcount alone. Members who answered nothing are counted in the roster but left
+   out of the average — a student who joins and does nothing would otherwise sink their team,
+   which turns a group task into a lottery about who you were sitting next to. */
+function computeTeamStandings(results){
+  const byTeam={};
+  results.forEach(r=>{
+    const t=r.team; if(!t) return;
+    if(!byTeam[t]) byTeam[t]={ team:t, members:[], scoring:0, pctSum:0, points:0, possible:0 };
+    const g=byTeam[t];
+    g.members.push(r);
+    g.points+=Number(r.score)||0;
+    g.possible+=Number(r.totalPossible)||0;
+    if((r.answers||[]).length>0){ g.scoring++; g.pctSum+=Number(r.percentage)||0; }
+  });
+  const list=Object.keys(byTeam).map(k=>{
+    const g=byTeam[k];
+    g.average = g.scoring>0 ? (g.pctSum/g.scoring) : 0;
+    g.size = g.members.length;
+    g.idle = g.size - g.scoring;
+    return g;
+  });
+  // Highest average first; a team with nobody scoring sorts last whatever its size.
+  list.sort((a,b)=> b.average-a.average || b.scoring-a.scoring || a.team.localeCompare(b.team));
+  list.forEach((g,i)=>{ g.rank=i+1; });
+  return list;
+}
+
+// Appends a team summary beneath the student table. Writes nothing for an individual run.
+function appendTeamBlock(rows, results, nQ){
+  const standings=computeTeamStandings(results);
+  if(!standings.length) return;
+  const pad=new Array(Math.max(0,nQ)).fill("");
+  rows.push([]);
+  rows.push(["Team results"]);
+  rows.push(["Rank","Team","Members","Counted","TeamAverage%","PointsTotal","PointsPossible"]);
+  standings.forEach(g=>{
+    rows.push([ g.rank, g.team, g.size, g.scoring, g.average.toFixed(1), g.points, g.possible ]);
+  });
+  rows.push([]);
+  rows.push(["Counted = members who answered at least one question. The team average ignores the rest."].concat(pad.slice(0,0)));
+}
 
 /* ============ HISTORY TAB ============ */
 // Reports are visible for 6 months; older runs are hidden here (and purged/archived server-side).
@@ -3462,10 +4142,16 @@ async function openHistory(){
     const r=await Backend.listSessions();
     const cutoff = Date.now() - REPORT_VISIBLE_DAYS*24*60*60*1000;
     // Polls are excluded: their responses are deleted on close, so there is nothing to report.
-    const all=(r.sessions||[]).filter(x=>x.kind!=="poll");
+    let all=(r.sessions||[]).filter(x=>x.kind!=="poll");
+    // A plain teacher sees only the runs they launched; an owner sees the whole school's.
+    if(!isOwner()) all=all.filter(runIsMine);
     const runs=all.filter(x=>(x.runAt||0)>=cutoff).sort((a,b)=>b.runAt-a.runAt);
     const hidden=all.length-runs.length;
-    if(runs.length===0){ el.innerHTML='<p class="sub">No quizzes in the last 6 months.'+(hidden>0?' ('+hidden+' older run(s) are hidden and will be archived/deleted server-side.)':'')+'</p>'; return; }
+    if(runs.length===0){
+      el.innerHTML='<p class="sub">'+(isOwner()?"No quizzes in the last 6 months.":"You haven\u2019t run any tests in the last 6 months.")
+        +(hidden>0?' ('+hidden+' older run(s) are hidden and will be archived/deleted server-side.)':'')+'</p>';
+      return;
+    }
     el.innerHTML="";
     runs.forEach(run=>{
       const div=document.createElement("div"); div.className="student-row";
@@ -3475,11 +4161,33 @@ async function openHistory(){
       div.innerHTML='<span><b>'+run.code+'</b>'+school+'<br><small class="hint">'+fmtDate(run.runAt)+(cnt?" · "+cnt:"")+who+'</small></span>';
       const btn=document.createElement("button"); btn.className="btn-outline"; btn.style.flex="0 0 auto"; btn.textContent="Download CSV";
       btn.onclick=()=>buildAndDownloadCSV(run.runId, run.code, null, run.school);
-      div.appendChild(btn); el.appendChild(div);
+      div.appendChild(btn);
+      if(isOwner()){
+        const del=document.createElement("button"); del.className="btn-danger"; del.style.flex="0 0 auto"; del.textContent="Delete";
+        del.onclick=()=>deleteRunFromHistory(run);
+        div.appendChild(del);
+      }
+      el.appendChild(div);
     });
     if(hidden>0){ const n=document.createElement("p"); n.className="sub"; n.style.marginTop="10px";
       n.textContent = hidden+" run(s) older than 6 months are hidden here (archived/deleted server-side)."; el.appendChild(n); }
   }catch(e){ el.innerHTML='<p class="sub" style="color:var(--danger)">Couldn\'t load history: '+e.message+'</p>'; }
+}
+
+/* Permanently remove one run's record and every student answer in it. Owner-only, and
+   deliberately not undoable — there is no bin to restore from, so the confirmation spells out
+   what is about to go and asks for the session code back to make an accidental click unlikely. */
+async function deleteRunFromHistory(run){
+  if(!requireOwner("delete a result")) return;
+  const typed=prompt(
+    "Delete the results for "+run.code+" permanently?\n\n"+
+    (run.studentCount||0)+" student record(s) will be erased. This cannot be undone — download the CSV first if you might need it.\n\n"+
+    "Type the session code to confirm:");
+  if(typed===null) return;
+  if(String(typed).trim().toUpperCase()!==String(run.code).toUpperCase()){ alert("That didn't match — nothing was deleted."); return; }
+  try{ await Backend.deleteRun(run.runId); }
+  catch(e){ alert("Delete failed: "+e.message); return; }
+  openHistory();
 }
 
 /* ============ STUDENT ============ */
@@ -3733,15 +4441,20 @@ function startStudentStatusPolling(){
       if(startHint) startHint.style.display="none";
       if(waitStatus) waitStatus.textContent="Waiting for your teacher to start the test…";
     }
-    // Teacher has started: show the tap-to-start button (a tap is required so full screen
-    // can engage — browsers only allow full screen from a real tap, not an automatic event).
+    // Teacher has started: drop the student straight into the test. There is no tap to make
+    // here any more — the teacher's launch is the only start signal. Full screen is the one
+    // thing a tap used to buy us (browsers only grant it from a real gesture), so when
+    // monitoring is on and the automatic request is refused, the existing full-screen overlay
+    // is raised and their tap on it does the job instead. See startStudentTest().
     if(meta.status==="active" && !STUDENT.testStarted){
+      showStudentTeam(meta);
       const resuming=!!STUDENT.resuming;
       if(waitStatus) waitStatus.textContent = resuming
-        ? "You were disconnected. Your answers were saved — tap to pick up where you left off."
-        : "Your teacher has started the test.";
-      if(startBtn){ startBtn.innerHTML = resuming ? "&#9654; Resume Your Test" : "&#9654; Start Your Test"; startBtn.style.display="inline-block"; }
-      if(startHint) startHint.style.display="block";
+        ? "You were disconnected — picking up where you left off…"
+        : "Your teacher has started the test. Opening it now…";
+      if(startBtn) startBtn.style.display="none";
+      if(startHint) startHint.style.display="none";
+      studentBeginTest();
     }
     // Missed the start entirely (joined after it already ended).
     if(meta.status==="ended" && !STUDENT.testStarted && !STUDENT.finished){
@@ -3760,8 +4473,27 @@ function startStudentStatusPolling(){
   });
 }
 function stopStudentStatusPolling(){ if(STU_UNSUB){ STU_UNSUB(); STU_UNSUB=null; } }
-// Triggered by the student tapping "Start Your Test" — this tap is the user gesture that
-// lets full screen engage (when the teacher enabled security monitoring).
+
+/* Tell the student which team they're on, and who else is on it. Shown on the waiting screen
+   just before the test opens, and again on their results screen — in between, the questions
+   have their full attention and a team badge would only be clutter. */
+function studentTeamName(meta){
+  const map=(meta&&meta.teamMap)||{};
+  return map[STUDENT.id] || "";
+}
+function showStudentTeam(meta){
+  const box=document.getElementById("wait-team");
+  if(!box) return;
+  const team=studentTeamName(meta);
+  if(!team){ box.style.display="none"; return; }
+  box.style.display="block";
+  box.innerHTML='<div style="padding:12px;border:2px solid var(--ink);border-radius:12px;">'+
+    '<div class="sub" style="margin:0 0 4px;">Your team</div>'+
+    '<div style="font-size:1.6rem;font-weight:800;">'+escapeHtml(team)+'</div>'+
+    '<small class="hint">You answer on your own phone. Your team\u2019s score is the average of everyone in it.</small></div>';
+}
+// Fired automatically when the teacher launches. Kept as a named function (rather than inlined)
+// because the reconnect path calls it too.
 function studentBeginTest(){
   if(STUDENT.testStarted) return;
   STUDENT.testStarted=true;
@@ -3784,7 +4516,16 @@ function fillFeedbackPanel(result){
 function startStudentTest(){
   // A fresh start clears the per-question timing state; a resume keeps what was restored.
   if(!STUDENT.resuming){ STUDENT.qDeadlines={}; STUDENT.qLocked={}; }
-  if(STUDENT.meta.security) enableSecurityMonitoring();
+  if(STUDENT.meta.security){
+    enableSecurityMonitoring();
+    // The test now opens without a tap, so the automatic full-screen request has no user
+    // gesture behind it and most browsers will refuse it. Give it a moment to land; if it
+    // hasn't, raise the same overlay used when a student leaves full screen mid-test — their
+    // tap on that is a valid gesture. Skipped on iOS, which has no web full screen at all.
+    if(_fsSupported) setTimeout(()=>{
+      if(!STUDENT.finished && STUDENT.testStarted && !inFullscreen()) showFSOverlay();
+    }, 700);
+  }
   if(STUDENT.meta.timeLimitMin>0){
     document.getElementById("test-timer").style.display="inline-block";
     // On a resume, keep the original deadline so a disconnect can't buy extra time.
