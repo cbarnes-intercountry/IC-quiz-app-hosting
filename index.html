@@ -551,7 +551,7 @@
 <div class="screen" id="screen-admin-builder">
   <div class="top-nav wide">
     <span class="badge" id="builder-badge">Admin &middot; Question Builder</span>
-    <a class="linklike" onclick="showScreen('screen-admin')">&larr; Back</a>
+    <a class="linklike" onclick="leaveBuilder('screen-admin')">&larr; Back</a>
   </div>
   <div class="duo">
     <div class="duo-col">
@@ -1190,6 +1190,7 @@
       <input type="text" id="img-q" placeholder="e.g. price skimming" style="flex:2;" onkeydown="if(event.key==='Enter')runImageSearch(0)">
       <button class="btn-primary" style="flex:0 0 auto;" onclick="runImageSearch(0)">Search</button>
     </div>
+    <small class="hint" id="img-topic-note" style="display:none;margin-top:6px;"></small>
     <label class="hint" style="display:flex;align-items:center;gap:8px;margin-top:10px;font-weight:400;cursor:pointer;">
       <input type="checkbox" id="img-allow-credit" style="width:auto;margin:0;" onchange="runImageSearch(0)">
       Widen the Creative Commons archives to images that need a credit
@@ -2913,6 +2914,40 @@ async function loadQuizList(){
   }catch(e){ console.warn(e); }
 }
 // Start a brand-new quiz or poll: clear the bank and open the builder in that mode.
+/* ---- Unsaved work in the builder ----
+   Nothing in the question builder touches the database until "Save Quiz" is pressed, so leaving
+   the screen throws away everything since the last save. That is easy to do by accident: Back
+   is a single click away from a morning's work.
+
+   Rather than watch every input, the builder takes a fingerprint of its state when it opens and
+   after each save, and compares on the way out. That way an edit made anywhere — a typed
+   question, a reordered bank, a ticked school, an imported sheet — is noticed, including from
+   the code paths that change TEACHER.questions directly without touching a form. */
+let BUILDER_CLEAN = "";
+
+function builderFingerprint(){
+  const name=(document.getElementById("quiz-save-name")||{}).value||"";
+  // The open editor is included, so typing a question and leaving without pressing Add counts.
+  const draft=(document.getElementById("qe-text")||{}).value||"";
+  let schools=[]; try{ schools=getCheckedSchools(); }catch(e){}
+  return JSON.stringify({ mode:BUILDER_MODE, name, draft, schools, questions:TEACHER.questions||[] });
+}
+function markBuilderSaved(){ BUILDER_CLEAN=builderFingerprint(); }
+function builderIsDirty(){
+  if(!isScreenActive("screen-admin-builder")) return false;
+  return builderFingerprint()!==BUILDER_CLEAN;
+}
+/* The one exit the app controls itself. The browser's own close/reload warning is handled by
+   beforeunload further down — that one can only show the browser's fixed wording. */
+function leaveBuilder(target){
+  if(builderIsDirty() && !confirm(
+      "You have changes that haven't been saved.\n\n"+
+      "Leaving now discards them \u2014 nothing is kept until you press \u201cSave "+
+      (BUILDER_MODE==="poll"?"Poll":"Quiz")+"\u201d.\n\nLeave without saving?")) return;
+  BUILDER_CLEAN="";
+  showScreen(target||"screen-admin");
+}
+
 function newSet(mode){
   BUILDER_MODE = (mode==="poll") ? "poll" : "quiz";
   TEACHER.questions = [];
@@ -2921,6 +2956,7 @@ function newSet(mode){
   applyBuilderMode();
   renderQBank();
   showScreen("screen-admin-builder");
+  markBuilderSaved();          // a blank builder is not unsaved work
 }
 function newQuiz(){ newSet("quiz"); }   // kept: older buttons/bookmarks still work
 // Restrict the type dropdown to the current mode, and relabel the save card.
@@ -2968,6 +3004,7 @@ async function saveQuizToLibrary(){
   }
   try{
     await Backend.saveQuiz(quizKey(name), name, TEACHER.questions, schools, mode);
+    markBuilderSaved();     // before leaving, so the exit guard stays quiet
     loadQuizList();
     alert('Saved "'+name+'" for '+schools.join(", ")+' ('+TEACHER.questions.length+' questions).');
     showScreen("screen-admin");
@@ -2988,6 +3025,7 @@ async function loadSetFromLibrary(mode){
     applyBuilderMode();
     renderQBank();
     showScreen("screen-admin-builder");
+    markBuilderSaved();        // freshly loaded = nothing changed yet
   }catch(e){ alert("Load failed: "+e.message); }
 }
 function loadQuizFromLibrary(){ return loadSetFromLibrary("quiz"); }
@@ -3037,6 +3075,7 @@ function deleteQuizFromLibrary(){ return deleteSetFromLibrary("quiz"); }
 const IMG_FREE_LICENSES = "cc0,pdm";                 // Creative Commons, no credit required
 const IMG_ANY_LICENSES  = "cc0,pdm,by,by-sa,by-nc,by-nd,by-nc-sa,by-nc-nd";
 let IMG_PICKER = { page:0, results:[], target:null, source:"" };
+let IMG_TOPIC = "";   // the quiz's subject, worked out when the picker opens
 
 /* Unsplash is the primary source: a curated, keyword-tagged library, which is why a search for
    "negotiation" returns something usable there and something random from an archive.
@@ -3055,33 +3094,141 @@ async function unsplashKey(){
    carry more meaning than short ones. It does well on concrete questions and poorly on
    abstract ones, which is why the box stays editable and why an ImageSearch column on the
    Excel import beats it whenever someone has bothered to fill one in. */
-const IMG_STOPWORDS = new Set(("a,an,the,and,or,but,if,then,than,that,this,these,those,of,in,on,at,to,for,from,with,without,"+
+const IMG_STOPWORDS = new Set((
+  // Grammar and question scaffolding.
+  "a,an,the,and,or,but,if,then,than,that,this,these,those,of,in,on,at,to,for,from,with,without,"+
   "by,as,is,are,was,were,be,been,being,do,does,did,doing,have,has,had,will,would,shall,should,can,could,may,might,must,"+
   "what,which,who,whom,whose,when,where,why,how,not,no,yes,it,its,they,them,their,you,your,we,our,us,he,she,his,her,"+
   "according,primarily,mainly,mostly,following,best,most,least,more,less,many,much,some,any,all,both,each,every,other,"+
   "true,false,correct,answer,question,text,video,article,above,below,here,there,about,into,over,under,again,also,only,"+
   "one,two,three,four,five,first,second,third,next,last,does,say,said,mean,means,stand,called,call,name,names,term,terms,"+
-  // Instruction verbs and comparison filler: they open a great many questions and never
-  // describe anything you could photograph.
+  // Instruction verbs: they open a great many questions and describe nothing photographable.
   "put,place,choose,select,pick,match,identify,complete,explain,describe,define,list,give,state,order,arrange,rank,"+
-  "difference,differences,between,among,versus,vs,advantage,advantages,disadvantage,disadvantages,main,example,examples"
+  "difference,differences,between,among,versus,vs,advantage,advantages,disadvantage,disadvantages,main,example,examples,"+
+  /* Meta-nouns and their adjectives. These describe the QUESTION rather than its subject, and
+     they are the reason "What was the primary purpose of the first official insurance policies"
+     used to search for "primary purpose official" — three words about the shape of the question,
+     while "insurance" sat unused in fourth place. They are common in exam writing precisely
+     because they are neutral, which is exactly what makes them useless to an image search. */
+  "purpose,purposes,role,roles,aim,aims,goal,goals,reason,reasons,cause,causes,effect,effects,impact,impacts,"+
+  "importance,significance,function,functions,feature,features,characteristic,characteristics,benefit,benefits,"+
+  "factor,factors,aspect,aspects,element,elements,point,points,idea,ideas,concept,concepts,issue,issues,"+
+  "result,results,outcome,outcomes,consequence,consequences,objective,objectives,principle,principles,"+
+  "primary,official,original,general,typical,particular,specific,common,important,significant,relevant,possible,"+
+  "type,types,kind,kinds,sort,form,forms,way,ways,method,methods,process,processes,step,steps,stage,stages,"+
+  "part,parts,number,amount,level,levels,degree,extent,range,case,cases,situation,context,basis,"+
+  "statement,statements,definition,definitions,description,meaning,meanings,key,word,words,"+
+  "after,before,during,since,until,while,through,across,against,within,upon,per,via"
   ).split(","));
+
+/* Words that carry no picture even when they survive the filter. A bare number is the clearest
+   case: "1347" is the most specific word in a question about medieval insurance and the least
+   searchable — no image library indexes by year. */
+function imgWordUseless(w){
+  return /^[\p{N}]+$/u.test(w) || /^[\p{N}]+(st|nd|rd|th|s)$/iu.test(w);
+}
+
+/* In a question of the shape "the X of the Y", Y is the subject and X is scaffolding — so
+   "the primary purpose of the first official insurance policies" should search for "insurance
+   policies", not for a description of the question's own grammar.
+
+   The rule only fires when NOTHING before the "of" survived the filter, which is the signal
+   that the opening really was pure scaffolding. Without that condition it does more harm than
+   good: "a balance sheet covers a period of time" would collapse to "time", and "Lloyds of
+   London" would lose the half that names the company. In both of those the head holds real
+   words, so the sentence is left alone. */
+function imgSubjectHalf(words){
+  const i=words.findIndex(w=>w.raw==="of");
+  if(i<0) return null;
+  if(words.slice(0,i).some(w=>w.keep)) return null;   // the head said something — keep it
+  const tail=words.slice(i+1).filter(w=>w.keep);
+  return tail.length ? tail : null;
+}
+
+/* ---- Quiz topic ----
+   A single word is often ambiguous on its own: "risk" returns rock climbers and skydivers,
+   when a quiz about insurance wants an underwriter's idea of risk. The quiz itself already
+   says what it is about, in two places — the name the teacher gave it, and the words that
+   recur across its other questions — so the topic is read from those and added to short
+   searches.
+
+   The name is trusted first because a teacher typed it deliberately. Failing that, a word has
+   to appear in at least two questions AND in at least a third of them before it counts as the
+   subject; a word that turns up once is about that question, not about the quiz. */
+function imgContentWords(text){
+  return String(text||"")
+    .replace(/[^\p{L}\p{N}\s-]/gu," ")
+    .split(/\s+/)
+    .filter(w=>w.length>2 && !IMG_STOPWORDS.has(w.toLowerCase()) && !imgWordUseless(w));
+}
+
+function deriveQuizTopic(questions, setName){
+  /* The questions are read before the name. The name is deliberate but often administrative
+     and sometimes not in English — "BTS2 Assurance" would have searches asking Unsplash for
+     "assurance", which is not the English word for the subject. The question text is the
+     evidence of what the quiz is actually about, so it decides, and the name is the fallback
+     when there isn't enough of it. */
+  const qs=(questions||[]).filter(q=>q && q.text);
+  if(qs.length>=2){
+    const seenIn={};
+    qs.forEach(q=>{
+      new Set(imgContentWords(q.text).map(w=>w.toLowerCase())).forEach(w=>{ seenIn[w]=(seenIn[w]||0)+1; });
+    });
+    // A word must recur across the quiz, not just within one question: at least twice, and in
+    // at least a third of the questions.
+    const threshold=Math.max(2, Math.ceil(qs.length/3));
+    const best=Object.keys(seenIn)
+      .filter(w=>seenIn[w]>=threshold)
+      // Most widespread first; on a tie the longer word wins, because the longer of two equally
+      // common words is nearly always the specific one ("insurance" over "risk") — and the
+      // shorter is often the very word that needed disambiguating in the first place.
+      .sort((a,b)=> (seenIn[b]-seenIn[a]) || (b.length-a.length) || a.localeCompare(b));
+    if(best.length) return best[0];
+  }
+
+  // Fall back to the set's name, minus the administrative noise teachers put in it
+  // ("BTS2 Assurance — Unit 3" is a cohort and a unit number wrapped round a subject).
+  const nameNoise=new Set(["bts","bts1","bts2","unit","test","quiz","poll","revision","final","mock",
+    "exam","assessment","module","session","week","term","semester","part","level","group","class"]);
+  const fromName=imgContentWords(setName).filter(w=>!nameNoise.has(w.toLowerCase()));
+  return fromName.length ? fromName[fromName.length-1].toLowerCase() : "";
+}
+
+/* The topic is added to a ONE-WORD search and nothing longer. A single word is where the
+   ambiguity lives — "risk" on its own returns rock climbers — while two or three words have
+   already narrowed the field, and bolting the subject onto them costs more results than it
+   buys. It is never repeated, and because the query ladder drops words from the end, the topic
+   is the first thing released if the combined search comes back empty. */
+function applyQuizTopic(query, topic){
+  if(!query || !topic) return query;
+  const words=query.split(/\s+/).filter(Boolean);
+  if(words.length!==1) return query;
+  if(words[0].toLowerCase()===topic.toLowerCase()) return query;
+  return query+" "+topic;
+}
 
 function buildImageQuery(q){
   if(!q) return "";
   if(q.imageSearch) return String(q.imageSearch).trim();   // explicit term always wins
-  const words=String(q.text||"")
+
+  const all=String(q.text||"")
     .replace(/[^\p{L}\p{N}\s-]/gu," ")
     .split(/\s+/)
-    .map(w=>w.trim())
-    .filter(w=>w.length>2 && !IMG_STOPWORDS.has(w.toLowerCase()));
+    .filter(Boolean)
+    .map((w,i)=>({ w, i, raw:w.toLowerCase(),
+                   keep: w.length>2 && !IMG_STOPWORDS.has(w.toLowerCase()) && !imgWordUseless(w) }));
+
+  // Prefer the half of the sentence after "of", where the subject usually sits.
+  let words = imgSubjectHalf(all) || all.filter(w=>w.keep);
+  if(!words.length) words = all.filter(w=>w.keep);
   if(!words.length) return "";
-  /* Take the first three substantial words, in order, with capitalised ones promoted.
-     Position beats length: English front-loads the subject, so "a balance sheet covers a
-     period" gives "balance sheet covers", where picking the three longest words would have
-     dropped "sheet" and left the meaningless "balance covers period". Capitals still win
-     because an acronym or a proper noun is almost always what the question is really about. */
-  const ranked=words.map((w,i)=>({w,i,cap:/^[\p{Lu}]/u.test(w)&&i>0}))
+
+  /* Take the first three, in order, with capitalised words promoted. Position beats length —
+     English front-loads the subject, so "a balance sheet covers a period" gives "balance sheet
+     covers", where picking the longest words would drop "sheet" and leave the meaningless
+     "balance covers period". Capitals still win, because an acronym or proper noun is almost
+     always what the question is really about. */
+  const ranked=words.map(w=>({ w:w.w, i:w.i, cap:/^[\p{Lu}]/u.test(w.w) && w.i>0 }))
     .sort((a,b)=>(b.cap-a.cap) || (a.i-b.i))
     .slice(0,3)
     .sort((a,b)=>a.i-b.i);
@@ -3094,7 +3241,18 @@ function openImagePicker(){
   // Read the live text box, not the saved question — the teacher may have just typed it.
   const draft={ text:(document.getElementById("qe-text")||{}).value||"",
                 imageSearch:(cur&&cur.imageSearch)||"" };
-  document.getElementById("img-q").value = buildImageQuery(draft);
+
+  const nameBox=document.getElementById("quiz-save-name");
+  IMG_TOPIC=deriveQuizTopic(TEACHER.questions, nameBox ? nameBox.value : "");
+  const note=document.getElementById("img-topic-note");
+  // An explicit term the teacher wrote is theirs alone — the topic is not bolted onto it.
+  const base=buildImageQuery(draft);
+  const withTopic=draft.imageSearch ? base : applyQuizTopic(base, IMG_TOPIC);
+  if(note){
+    note.style.display = (IMG_TOPIC && withTopic!==base) ? "block" : "none";
+    note.textContent = "Added \u201c"+IMG_TOPIC+"\u201d from the rest of this quiz \u2014 delete it if it\u2019s pulling the wrong way.";
+  }
+  document.getElementById("img-q").value = withTopic;
   document.getElementById("img-results").innerHTML="";
   document.getElementById("img-status").textContent="";
   document.getElementById("img-source-note").textContent="";
@@ -4043,6 +4201,17 @@ function openQRFullscreen(which){
   overlay.style.display="flex";
 }
 function isScreenActive(id){ const el=document.getElementById(id); return !!(el && el.classList && el.classList.contains("active")); }
+
+/* Closing the tab or hitting reload with unsaved questions in the builder. Browsers deliberately
+   allow no custom wording here — they show their own "Leave site?" prompt — so this only decides
+   whether it appears. Returning early when the builder is clean matters: a page that always asks
+   trains people to click through without reading. */
+window.addEventListener("beforeunload", function(e){
+  if(typeof builderIsDirty!=="function" || !builderIsDirty()) return;
+  e.preventDefault();
+  e.returnValue = "";      // required by older browsers to trigger the prompt
+  return "";
+});
 function closeQRFullscreen(){ document.getElementById("qr-overlay").style.display="none"; }
 // Read the rendered QR (canvas or img) as a PNG blob.
 function getQRBlob(sel, cb){
