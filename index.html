@@ -605,6 +605,9 @@
             </span>
           </div>
         </div>
+        <button type="button" class="btn-outline" style="width:100%;margin-top:8px;" onclick="openImagePicker()">
+          &#128269; Find a free image
+        </button>
         <small id="qe-image-status" class="hint"></small>
         <small id="qe-audio-status" class="hint"></small>
         <div id="qe-options-area"></div>
@@ -1165,6 +1168,31 @@
   </div>
 </div>
 
+<!-- IMAGE PICKER (Creative Commons search) -->
+<div id="img-overlay" style="display:none;position:fixed;inset:0;background:rgba(26,29,41,.92);z-index:1500;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto;" onclick="closeImagePicker()">
+  <div style="background:var(--card,#fff);border-radius:16px;padding:20px;max-width:760px;width:100%;margin:auto;" onclick="event.stopPropagation()">
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;">
+      <h2 style="margin:0;">Find a free image</h2>
+      <button class="linklike" onclick="closeImagePicker()">Close</button>
+    </div>
+    <p class="sub" style="margin:6px 0 12px;">Public-domain and CC0 pictures you can use in class without crediting anyone.</p>
+    <div class="row" style="gap:8px;">
+      <input type="text" id="img-q" placeholder="e.g. price skimming" style="flex:2;" onkeydown="if(event.key==='Enter')runImageSearch(0)">
+      <button class="btn-primary" style="flex:0 0 auto;" onclick="runImageSearch(0)">Search</button>
+    </div>
+    <label class="hint" style="display:flex;align-items:center;gap:8px;margin-top:10px;font-weight:400;cursor:pointer;">
+      <input type="checkbox" id="img-allow-credit" style="width:auto;margin:0;" onchange="runImageSearch(0)">
+      Include images that need a credit (a small credit line then shows under the picture)
+    </label>
+    <p id="img-status" class="sub" style="margin:12px 0 0;"></p>
+    <div id="img-results" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-top:12px;"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;gap:10px;">
+      <small class="hint" id="img-source-note"></small>
+      <button class="btn-outline" id="img-more" style="display:none;flex:0 0 auto;" onclick="runImageSearch(IMG_PICKER.page+1)">Show 6 more</button>
+    </div>
+  </div>
+</div>
+
 <!-- FULLSCREEN QR OVERLAY -->
 <div id="qr-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:1000;flex-direction:column;align-items:center;justify-content:center;padding:20px;" onclick="closeQRFullscreen()">
   <div style="background:#fff;padding:26px;border-radius:16px;text-align:center;max-width:92vw;" onclick="event.stopPropagation()">
@@ -1564,9 +1592,28 @@ function paintQuestionMedia(q, imgId, audioWrapId){
   if(img){
     if(q && q.image){ img.src=q.image; img.style.display="block"; }
     else { img.removeAttribute("src"); img.style.display="none"; }
+    paintImageCredit(q, img);
   }
   const aw=document.getElementById(audioWrapId);
   if(aw) aw.innerHTML = (q && q.audio) ? '<audio controls preload="metadata" src="'+escapeHtml(q.audio)+'"></audio>' : "";
+}
+/* A credit line, only when the licence demands one. CC0 and public-domain pictures carry no
+   imageCredit at all, so nothing is drawn and the question stays clean — which is the whole
+   reason the picker defaults to those two licences. The line is inserted after the image and
+   removed again when there is nothing to say, so it can't linger from a previous question. */
+function paintImageCredit(q, img){
+  const id=img.id+"-credit";
+  let el=document.getElementById(id);
+  const credit=(q && q.image && q.imageCredit) ? String(q.imageCredit) : "";
+  if(!credit){ if(el) el.remove(); return; }
+  if(!el){
+    el=document.createElement("small");
+    el.id=id; el.className="hint";
+    el.style.cssText="display:block;margin-top:4px;opacity:.65;font-size:.72rem;";
+    if(img.parentNode) img.parentNode.insertBefore(el, img.nextSibling);
+  }
+  el.textContent="Image: "+credit;
+  el.style.display="block";
 }
 function metaFlag(meta, name, idx){ return !!metaMap(meta,name)[String(idx)]; }
 /* Reveal is tri-state, not a plain flag: results are revealed by default, the question's own
@@ -2932,6 +2979,202 @@ async function deleteSetFromLibrary(mode){
 }
 function deleteQuizFromLibrary(){ return deleteSetFromLibrary("quiz"); }
 
+/* ============ IMAGE SEARCH (Creative Commons) ============
+   Finds pictures for a question without an API key, so there is nothing to register, nothing
+   to store and nothing that can expire. Two sources, tried in order:
+
+     Openverse   — aggregates Flickr, Wikimedia and others. Broad, good for everyday subjects.
+     Wikimedia   — Commons directly. Narrower and more encyclopaedic, but reliable, and it
+                   covers named things (a company, a building, a person) that Openverse misses.
+
+   Wikimedia is not only a fallback for when Openverse is down: its results genuinely differ, so
+   a search that returns nothing useful from one is worth repeating against the other.
+
+   LICENSING. The default is CC0 and public-domain only, which carry no attribution requirement
+   at all — that is what lets a picture appear on a question with no credit line. Ticking
+   "include images that need a credit" widens the search to the rest of Creative Commons, and
+   anything chosen from that wider pool carries its credit through to the question and is shown
+   to students. Storing the credit but hiding it would not be honouring the licence, so the two
+   move together. */
+const IMG_FREE_LICENSES = "cc0,pdm";                 // no credit required
+const IMG_ANY_LICENSES  = "cc0,pdm,by,by-sa,by-nc,by-nd,by-nc-sa,by-nc-nd";
+let IMG_PICKER = { page:0, results:[], target:null, source:"" };
+
+/* Turn a question into a search term. There is no AI in the page, so this is a heuristic:
+   drop question words and filler, keep what's left, and use the longest few — longer words
+   carry more meaning than short ones. It does well on concrete questions and poorly on
+   abstract ones, which is why the box stays editable and why an ImageSearch column on the
+   Excel import beats it whenever someone has bothered to fill one in. */
+const IMG_STOPWORDS = new Set(("a,an,the,and,or,but,if,then,than,that,this,these,those,of,in,on,at,to,for,from,with,without,"+
+  "by,as,is,are,was,were,be,been,being,do,does,did,doing,have,has,had,will,would,shall,should,can,could,may,might,must,"+
+  "what,which,who,whom,whose,when,where,why,how,not,no,yes,it,its,they,them,their,you,your,we,our,us,he,she,his,her,"+
+  "according,primarily,mainly,mostly,following,best,most,least,more,less,many,much,some,any,all,both,each,every,other,"+
+  "true,false,correct,answer,question,text,video,article,above,below,here,there,about,into,over,under,again,also,only,"+
+  "one,two,three,four,five,first,second,third,next,last,does,say,said,mean,means,stand,called,call,name,names,term,terms,"+
+  // Instruction verbs and comparison filler: they open a great many questions and never
+  // describe anything you could photograph.
+  "put,place,choose,select,pick,match,identify,complete,explain,describe,define,list,give,state,order,arrange,rank,"+
+  "difference,differences,between,among,versus,vs,advantage,advantages,disadvantage,disadvantages,main,example,examples"
+  ).split(","));
+
+function buildImageQuery(q){
+  if(!q) return "";
+  if(q.imageSearch) return String(q.imageSearch).trim();   // explicit term always wins
+  const words=String(q.text||"")
+    .replace(/[^\p{L}\p{N}\s-]/gu," ")
+    .split(/\s+/)
+    .map(w=>w.trim())
+    .filter(w=>w.length>2 && !IMG_STOPWORDS.has(w.toLowerCase()));
+  if(!words.length) return "";
+  /* Take the first three substantial words, in order, with capitalised ones promoted.
+     Position beats length: English front-loads the subject, so "a balance sheet covers a
+     period" gives "balance sheet covers", where picking the three longest words would have
+     dropped "sheet" and left the meaningless "balance covers period". Capitals still win
+     because an acronym or a proper noun is almost always what the question is really about. */
+  const ranked=words.map((w,i)=>({w,i,cap:/^[\p{Lu}]/u.test(w)&&i>0}))
+    .sort((a,b)=>(b.cap-a.cap) || (a.i-b.i))
+    .slice(0,3)
+    .sort((a,b)=>a.i-b.i);
+  return ranked.map(r=>r.w).join(" ");
+}
+
+function openImagePicker(){
+  const overlay=document.getElementById("img-overlay");
+  const cur=(EDIT_INDEX>=0 && TEACHER.questions[EDIT_INDEX]) || null;
+  // Read the live text box, not the saved question — the teacher may have just typed it.
+  const draft={ text:(document.getElementById("qe-text")||{}).value||"",
+                imageSearch:(cur&&cur.imageSearch)||"" };
+  document.getElementById("img-q").value = buildImageQuery(draft);
+  document.getElementById("img-results").innerHTML="";
+  document.getElementById("img-status").textContent="";
+  document.getElementById("img-source-note").textContent="";
+  document.getElementById("img-more").style.display="none";
+  IMG_PICKER={ page:0, results:[], target:"image", source:"" };
+  overlay.style.display="flex";
+  const box=document.getElementById("img-q");
+  if(box && box.focus) try{ box.focus(); box.select(); }catch(e){}
+  if(box.value) runImageSearch(0);
+}
+function closeImagePicker(){ document.getElementById("img-overlay").style.display="none"; }
+
+const IMG_PAGE_SIZE=6;
+
+async function searchOpenverse(query, page, allowCredit){
+  const url="https://api.openverse.org/v1/images/?q="+encodeURIComponent(query)+
+    "&page_size="+IMG_PAGE_SIZE+"&page="+(page+1)+
+    "&license="+(allowCredit?IMG_ANY_LICENSES:IMG_FREE_LICENSES)+
+    "&mature=false";
+  const res=await fetch(url,{ headers:{ "Accept":"application/json" } });
+  if(!res.ok) throw new Error("Openverse "+res.status);
+  const j=await res.json();
+  return (j.results||[]).map(r=>({
+    thumb: r.thumbnail || r.url,
+    full:  r.url,
+    title: r.title || "",
+    creator: r.creator || "",
+    license: (r.license||"").toUpperCase(),
+    needsCredit: !["CC0","PDM"].includes((r.license||"").toUpperCase()),
+    source: "Openverse"
+  }));
+}
+
+/* Wikimedia Commons. Everything here is freely licensed, but the licence of an individual file
+   is only in its metadata, so the no-credit filter is applied after the fact rather than in the
+   query. origin=* is what makes the request readable from another site. */
+async function searchWikimedia(query, page, allowCredit){
+  const offset=page*IMG_PAGE_SIZE;
+  const url="https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*"+
+    "&generator=search&gsrnamespace=6&gsrlimit="+(IMG_PAGE_SIZE*3)+"&gsroffset="+offset+
+    "&gsrsearch="+encodeURIComponent(query+" filetype:bitmap")+
+    "&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=420";
+  const res=await fetch(url);
+  if(!res.ok) throw new Error("Wikimedia "+res.status);
+  const j=await res.json();
+  const pages=(j.query&&j.query.pages)||{};
+  const out=[];
+  Object.values(pages).forEach(p=>{
+    const ii=(p.imageinfo||[])[0]; if(!ii) return;
+    const meta=ii.extmetadata||{};
+    const lic=((meta.LicenseShortName&&meta.LicenseShortName.value)||"").toUpperCase();
+    const free=/CC0|PUBLIC DOMAIN|PD/.test(lic);
+    if(!allowCredit && !free) return;
+    out.push({
+      thumb: ii.thumburl || ii.url,
+      full:  ii.url,
+      title: (p.title||"").replace(/^File:/,""),
+      creator: ((meta.Artist&&meta.Artist.value)||"").replace(/<[^>]*>/g,"").trim(),
+      license: lic,
+      needsCredit: !free,
+      source: "Wikimedia Commons"
+    });
+  });
+  return out.slice(0, IMG_PAGE_SIZE);
+}
+
+async function runImageSearch(page){
+  const query=(document.getElementById("img-q").value||"").trim();
+  const allowCredit=document.getElementById("img-allow-credit").checked;
+  const status=document.getElementById("img-status");
+  const grid=document.getElementById("img-results");
+  const more=document.getElementById("img-more");
+  more.style.display="none";
+  if(!query){ status.textContent="Type something to search for."; grid.innerHTML=""; return; }
+  status.textContent="Searching…";
+  if(page===0) grid.innerHTML="";
+
+  let results=[], usedSource="", firstError="";
+  for(const [name,fn] of [["Openverse",searchOpenverse],["Wikimedia Commons",searchWikimedia]]){
+    try{
+      results=await fn(query, page, allowCredit);
+      usedSource=name;
+      if(results.length) break;          // a source that returns nothing is worth passing over
+    }catch(e){
+      if(!firstError) firstError=name+" didn't respond ("+e.message+")";
+    }
+  }
+
+  IMG_PICKER.page=page; IMG_PICKER.results=results; IMG_PICKER.source=usedSource;
+  if(EDIT_INDEX>=0 && TEACHER.questions[EDIT_INDEX]) TEACHER.questions[EDIT_INDEX].imageSearch=query;
+  if(!results.length){
+    status.textContent = firstError
+      ? firstError+". Try again in a moment, or use the upload tile instead."
+      : "Nothing found for “"+query+"”"+(allowCredit?"":" among pictures that need no credit — try ticking the box below the search")+".";
+    document.getElementById("img-source-note").textContent="";
+    return;
+  }
+  status.textContent="";
+  document.getElementById("img-source-note").textContent="From "+usedSource+" · tap a picture to use it";
+  renderImageResults(results, page===0);
+  more.style.display="inline-block";
+}
+
+function renderImageResults(results, replace){
+  const grid=document.getElementById("img-results");
+  if(replace) grid.innerHTML="";
+  results.forEach(r=>{
+    const cell=document.createElement("button");
+    cell.type="button";
+    cell.style.cssText="padding:0;border:2px solid var(--ink);border-radius:12px;overflow:hidden;background:#fff;cursor:pointer;display:block;text-align:left;";
+    const img=document.createElement("img");
+    img.src=r.thumb; img.alt=r.title; img.loading="lazy";
+    img.style.cssText="width:100%;height:130px;object-fit:cover;display:block;";
+    img.onerror=()=>{ cell.remove(); };     // a thumbnail that won't load is no use to anyone
+    const cap=document.createElement("span");
+    cap.style.cssText="display:block;padding:6px 8px;font-size:.78rem;line-height:1.3;";
+    cap.textContent=(r.title||"Untitled").slice(0,60);
+    if(r.needsCredit){
+      const lic=document.createElement("small");
+      lic.className="hint";
+      lic.style.display="block";
+      lic.textContent="credit: "+(r.creator||"unknown")+" ("+r.license+")";
+      cap.appendChild(lic);
+    }
+    cell.appendChild(img); cell.appendChild(cap);
+    cell.onclick=()=>chooseImage(r);
+    grid.appendChild(cell);
+  });
+}
+
 /* ============ MEDIA HOSTING (images + audio via your GitHub repo) ============
    Question media is not secret — students must see/hear it — so it is stored as a public
    file in the repo that already hosts this app, and the question keeps only the URL.
@@ -3035,6 +3278,67 @@ async function uploadQMedia(file, kind, label){
     status.textContent="✗ "+(e.message||e);
   }
 }
+/* A picture chosen from the search is copied into the repo rather than linked to where it was
+   found. A quiz can sit in the archive for years; a link to someone else's server is a hole
+   waiting to appear in it, and re-fetching the same picture for every student in the room is
+   rude to whoever is hosting it.
+
+   The copy needs the picture's own server to allow this page to read its bytes, which most but
+   not all do. When it refuses, the original URL is kept instead — a working question with a
+   fragile link beats no question at all — and the teacher is told which they got. */
+async function chooseImage(r){
+  const status=document.getElementById("qe-image-status");
+  const urlBox=document.getElementById("qe-image-url");
+  closeImagePicker();
+  status.textContent="Copying the picture into your library…";
+
+  let finalUrl="", copied=false;
+  try{
+    if(!await mediaReady()) throw new Error("no media token");
+    const payload=await urlToCompressedImage(r.full || r.thumb);
+    finalUrl=await uploadToGitHub(payload.base64, payload.ext);
+    copied=true;
+  }catch(e){
+    finalUrl=r.full || r.thumb;     // fall back to the original location
+  }
+
+  if(urlBox) urlBox.value=finalUrl;
+  // The credit travels with the question only when the licence actually requires one; a CC0
+  // picture carries nothing, which is what keeps the question clean.
+  if(EDIT_INDEX>=0 && TEACHER.questions[EDIT_INDEX]){
+    const q=TEACHER.questions[EDIT_INDEX];
+    if(r.needsCredit){ q.imageCredit=(r.creator||"Unknown")+(r.license?" ("+r.license+")":""); }
+    else { delete q.imageCredit; }
+  }
+  IMG_LAST_CREDIT = r.needsCredit ? ((r.creator||"Unknown")+(r.license?" ("+r.license+")":"")) : "";
+  previewQMedia("image", finalUrl, r.title||"image");
+  status.textContent = copied
+    ? "✓ Added to your library" + (r.needsCredit ? " — the credit will show under the picture." : ".")
+    : "✓ Added, but linked to its original home rather than copied — it may stop working if that site removes it.";
+}
+let IMG_LAST_CREDIT="";
+
+/* Fetch a picture by URL and put it through the same shrink-for-phones step as an upload.
+   crossOrigin is set before the source so the canvas stays readable; without it the browser
+   silently taints the canvas and the export throws. */
+function urlToCompressedImage(url, maxW=1000, quality=0.72){
+  return new Promise((resolve,reject)=>{
+    const img=new Image();
+    img.crossOrigin="anonymous";
+    img.onload=()=>{
+      try{
+        const scale=Math.min(1, maxW/img.width);
+        const cv=document.createElement("canvas");
+        cv.width=Math.round(img.width*scale); cv.height=Math.round(img.height*scale);
+        cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height);
+        resolve({ base64:cv.toDataURL("image/jpeg",quality).split(",")[1], ext:"jpg" });
+      }catch(e){ reject(new Error("That picture can't be copied from its site.")); }
+    };
+    img.onerror=()=>reject(new Error("That picture couldn't be loaded."));
+    img.src=url;
+  });
+}
+
 // Filled tiles are labelled with the file's own name, falling back to the URL's last segment.
 function qMediaName(url){
   try{ return decodeURIComponent(String(url).split("/").pop().split("?")[0]) || "file"; }
@@ -3054,6 +3358,7 @@ function previewQMedia(kind,url,label){
 // Detach media from this question. The uploaded file stays in the repo (other questions may
 // use it); the question simply stops pointing at it once saved.
 function clearQMedia(kind){
+  if(kind==="image" && EDIT_INDEX>=0 && TEACHER.questions[EDIT_INDEX]) delete TEACHER.questions[EDIT_INDEX].imageCredit;
   const box=document.getElementById("qe-"+kind+"-url"); if(box) box.value="";
   const picker=document.getElementById("qe-"+kind+"-file"); if(picker) picker.value="";
   previewQMedia(kind,"");
@@ -3166,6 +3471,10 @@ function readQuestionFromForm(){
   const cur=TEACHER.questions[EDIT_INDEX]||{};
   const q={ id:cur.id||("q_"+uid(6)), type, text, points, timeLimitSec, image:document.getElementById("qe-image-url").value.trim()||null,
               audio:document.getElementById("qe-audio-url").value.trim()||null };
+  // The search term and the credit belong to the question, not the form: the term so the
+  // picker reopens where it left off, the credit so it travels with the picture it belongs to.
+  if(cur.imageSearch) q.imageSearch=cur.imageSearch;
+  if(q.image && cur.imageCredit) q.imageCredit=cur.imageCredit;
   if(type==="mcq"){
     const opts=[]; let correctIdx=null;
     document.querySelectorAll("#mcq-opts .opt-row").forEach(row=>{
@@ -3373,6 +3682,9 @@ function parseQuizRows(rows){
     const points=parseFloat(get(row,"Points"))||1;
     const timeLimitSec=Math.max(0, parseInt(get(row,"TimeLimitSec"),10)||0);
     const q={ id:"q_"+uid(6), type, text, points, timeLimitSec, image: get(row,"ImageURL")||null, audio: get(row,"AudioURL")||null };
+    // Not a picture — a search term. It fills the image picker's box when this question is
+    // opened, so a sheet can suggest what to look for without committing to a particular image.
+    const isq=get(row,"ImageSearch"); if(isq) q.imageSearch=isq;
     if(isPollType(type)){
       // Poll questions are never marked, so Points and Correct are ignored on import.
       q.points=0; q.correct=null;
