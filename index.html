@@ -507,6 +507,16 @@
         <button class="btn-secondary" style="width:100%;margin-top:12px;" onclick="newSet('poll')">+ Create a New Poll</button>
       </div>
       <div class="card" style="margin-top:16px;" data-owner-only>
+        <h2>Image Search</h2>
+        <p class="sub">Unsplash supplies the pictures offered by &ldquo;Find a free image&rdquo; in the question editor. Free account, no card. Create an app at unsplash.com/oauth/applications and paste its <b>Access Key</b> here.</p>
+        <div class="row">
+          <input type="text" id="unsplash-key" placeholder="Access Key" autocomplete="off" spellcheck="false" style="flex:2;">
+          <button class="btn-outline" style="flex:0 0 auto;" onclick="saveUnsplashKey()">Save</button>
+        </div>
+        <p id="unsplash-status" class="sub" style="margin:10px 0 0;"></p>
+        <small class="hint">The key is kept in the database where only signed-in teachers can read it, never in the page itself. Leave it empty and the picker falls back to the Creative Commons archives, which are weaker for everyday subjects.</small>
+      </div>
+      <div class="card" style="margin-top:16px;" data-owner-only>
         <h2>Teacher Accounts</h2>
         <p class="sub">Owners can delete results, manage schools and add teachers. Teachers can do everything else.</p>
         <div id="teacher-list" style="margin:12px 0;"></div>
@@ -1175,14 +1185,14 @@
       <h2 style="margin:0;">Find a free image</h2>
       <button class="linklike" onclick="closeImagePicker()">Close</button>
     </div>
-    <p class="sub" style="margin:6px 0 12px;">Public-domain and CC0 pictures you can use in class without crediting anyone.</p>
+    <p class="sub" style="margin:6px 0 12px;">Unsplash first, then the Creative Commons archives. Unsplash photos carry a small credit line under the picture; public-domain ones carry nothing.</p>
     <div class="row" style="gap:8px;">
       <input type="text" id="img-q" placeholder="e.g. price skimming" style="flex:2;" onkeydown="if(event.key==='Enter')runImageSearch(0)">
       <button class="btn-primary" style="flex:0 0 auto;" onclick="runImageSearch(0)">Search</button>
     </div>
     <label class="hint" style="display:flex;align-items:center;gap:8px;margin-top:10px;font-weight:400;cursor:pointer;">
       <input type="checkbox" id="img-allow-credit" style="width:auto;margin:0;" onchange="runImageSearch(0)">
-      Include images that need a credit (a small credit line then shows under the picture)
+      Widen the Creative Commons archives to images that need a credit
     </label>
     <p id="img-status" class="sub" style="margin:12px 0 0;"></p>
     <div id="img-results" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px;margin-top:12px;"></div>
@@ -1381,6 +1391,33 @@ async function renderTeacherPanel(){
     }
     box.appendChild(row);
   });
+}
+
+/* The Unsplash access key. It is a public-ish credential — any browser using the API sends it —
+   but it still does not belong in a file students can read, so it lives in config/ with the
+   GitHub token, where the rules admit only signed-in teachers. */
+async function loadUnsplashKeyUI(){
+  const box=document.getElementById("unsplash-key");
+  const st=document.getElementById("unsplash-status");
+  if(!box || !isOwner()) return;
+  try{
+    const r=await Backend.getConfig("unsplashKey");
+    const key=(r&&r.value)||"";
+    box.value=key;
+    st.textContent = key ? "\u2713 A key is set — image search is using Unsplash." : "No key yet — image search is falling back to the Creative Commons archives.";
+  }catch(e){ st.textContent="Couldn\u2019t read the current key: "+e.message; }
+}
+async function saveUnsplashKey(){
+  if(!requireOwner("change the image search key")) return;
+  const box=document.getElementById("unsplash-key");
+  const st=document.getElementById("unsplash-status");
+  const key=(box.value||"").trim();
+  st.textContent="Saving\u2026";
+  try{
+    await Backend.setConfig("unsplashKey", key);
+    _unsplashKey=key;                     // drop the cached value so the next search uses it
+    st.textContent = key ? "\u2713 Saved. Try \u201cFind a free image\u201d on any question." : "\u2713 Cleared — image search will use the Creative Commons archives.";
+  }catch(e){ st.textContent="\u2717 Couldn\u2019t save: "+e.message; }
 }
 
 async function addTeacherUI(){
@@ -1967,6 +2004,7 @@ function openAdmin(){
   loadQuizList();       // fills the admin's quiz-library-select
   renderSchools();      // fills the schools list + the quiz school checkboxes
   renderTeacherPanel(); // no-op for a plain teacher
+  loadUnsplashKeyUI();  // owner-only too
   document.getElementById("archive-status").textContent = "";
 }
 // Manual retention: download a JSON backup of every run older than 6 months, then delete them.
@@ -2996,9 +3034,21 @@ function deleteQuizFromLibrary(){ return deleteSetFromLibrary("quiz"); }
    anything chosen from that wider pool carries its credit through to the question and is shown
    to students. Storing the credit but hiding it would not be honouring the licence, so the two
    move together. */
-const IMG_FREE_LICENSES = "cc0,pdm";                 // no credit required
+const IMG_FREE_LICENSES = "cc0,pdm";                 // Creative Commons, no credit required
 const IMG_ANY_LICENSES  = "cc0,pdm,by,by-sa,by-nc,by-nd,by-nc-sa,by-nc-nd";
 let IMG_PICKER = { page:0, results:[], target:null, source:"" };
+
+/* Unsplash is the primary source: a curated, keyword-tagged library, which is why a search for
+   "negotiation" returns something usable there and something random from an archive.
+   The access key is not written into this page — it is kept in the database under
+   config/unsplashKey, beside the GitHub token, and an owner sets it from the Admin screen. */
+let _unsplashKey = null;
+async function unsplashKey(){
+  if(_unsplashKey !== null) return _unsplashKey;
+  try{ const r = await Backend.getConfig("unsplashKey"); _unsplashKey = (r && r.value) || ""; }
+  catch(e){ _unsplashKey = ""; }
+  return _unsplashKey;
+}
 
 /* Turn a question into a search term. There is no AI in the page, so this is a heuristic:
    drop question words and filler, keep what's left, and use the longest few — longer words
@@ -3059,6 +3109,52 @@ function closeImagePicker(){ document.getElementById("img-overlay").style.displa
 
 const IMG_PAGE_SIZE=6;
 
+/* Unsplash. Two of their API rules shape what happens here:
+
+   Attribution. Every photo carries "Photo by <name> on Unsplash", stored on the question and
+   shown under the picture. Unlike the Creative Commons sources there is no credit-free subset,
+   so the credit line is not optional for these.
+
+   Hotlinking. Unsplash asks that photos be served from their own CDN rather than copied
+   elsewhere, because that is how a photographer's views are counted. So an Unsplash pick keeps
+   its original URL instead of being copied into the repo the way an upload is. Their CDN is
+   reliable and the URLs are stable, so the practical risk is a photographer deleting a photo —
+   rare, and visible immediately if it happens. Pictures from the Creative Commons sources are
+   still copied, since nothing there asks otherwise. */
+async function searchUnsplash(query, page){
+  const key=await unsplashKey();
+  if(!key) throw new Error("no key");
+  const url="https://api.unsplash.com/search/photos?query="+encodeURIComponent(query)+
+    "&per_page="+IMG_PAGE_SIZE+"&page="+(page+1)+"&content_filter=high&orientation=landscape";
+  const res=await fetch(url,{ headers:{ "Authorization":"Client-ID "+key, "Accept-Version":"v1" } });
+  if(res.status===401) throw new Error("the Unsplash key was rejected");
+  if(res.status===403) throw new Error("Unsplash's hourly limit is used up");
+  if(!res.ok) throw new Error("Unsplash "+res.status);
+  const j=await res.json();
+  return (j.results||[]).map(r=>({
+    thumb: (r.urls&&r.urls.small) || "",
+    full:  (r.urls&&r.urls.regular) || (r.urls&&r.urls.full) || "",
+    title: r.description || r.alt_description || "",
+    creator: (r.user&&r.user.name) || "Unsplash photographer",
+    license: "Unsplash",
+    needsCredit: true,
+    hotlink: true,                                     // served from Unsplash, not copied
+    downloadLocation: (r.links&&r.links.download_location) || "",
+    source: "Unsplash"
+  }));
+}
+
+/* Unsplash counts a "download" when a picture is actually used, and asks to be told. It costs
+   one request and keeps the photographer's statistics honest, so it fires when a picture is
+   chosen — never during browsing, which would inflate every photo that merely appeared. */
+async function notifyUnsplashUse(r){
+  if(!r || !r.downloadLocation) return;
+  try{
+    const key=await unsplashKey();
+    if(key) await fetch(r.downloadLocation, { headers:{ "Authorization":"Client-ID "+key } });
+  }catch(e){ /* a failed count must never block the teacher */ }
+}
+
 async function searchOpenverse(query, page, allowCredit){
   const url="https://api.openverse.org/v1/images/?q="+encodeURIComponent(query)+
     "&page_size="+IMG_PAGE_SIZE+"&page="+(page+1)+
@@ -3111,6 +3207,17 @@ async function searchWikimedia(query, page, allowCredit){
   return out.slice(0, IMG_PAGE_SIZE);
 }
 
+/* Progressively shorter attempts at the same search. A three-word phrase is specific and
+   often finds nothing; dropping to two words, then one, is what stops a search that merely
+   needed widening from looking broken. The words are dropped from the end, because the first
+   word of a phrase built from a question is usually its subject. */
+function queryLadder(query){
+  const words=query.split(/\s+/).filter(Boolean);
+  const out=[];
+  for(let n=words.length; n>=1; n--) out.push(words.slice(0,n).join(" "));
+  return out.length ? out : [query];
+}
+
 async function runImageSearch(page){
   const query=(document.getElementById("img-q").value||"").trim();
   const allowCredit=document.getElementById("img-allow-credit").checked;
@@ -3119,31 +3226,57 @@ async function runImageSearch(page){
   const more=document.getElementById("img-more");
   more.style.display="none";
   if(!query){ status.textContent="Type something to search for."; grid.innerHTML=""; return; }
-  status.textContent="Searching…";
+  status.textContent="Searching\u2026";
   if(page===0) grid.innerHTML="";
+  if(EDIT_INDEX>=0 && TEACHER.questions[EDIT_INDEX]) TEACHER.questions[EDIT_INDEX].imageSearch=query;
 
-  let results=[], usedSource="", firstError="";
-  for(const [name,fn] of [["Openverse",searchOpenverse],["Wikimedia Commons",searchWikimedia]]){
-    try{
-      results=await fn(query, page, allowCredit);
-      usedSource=name;
-      if(results.length) break;          // a source that returns nothing is worth passing over
-    }catch(e){
-      if(!firstError) firstError=name+" didn't respond ("+e.message+")";
+  /* Unsplash first — curated and tagged, so it answers the everyday searches well. The
+     Creative Commons sources follow, and earn their place on the encyclopaedic ones:
+     Wikimedia has a photograph of a named building or a company's headquarters where a stock
+     library has only a generic office. */
+  const providers=[
+    ["Unsplash",          (q,p)=>searchUnsplash(q,p)],
+    ["Openverse",         (q,p)=>searchOpenverse(q,p,allowCredit)],
+    ["Wikimedia Commons", (q,p)=>searchWikimedia(q,p,allowCredit)]
+  ];
+
+  let results=[], usedSource="", usedQuery=query, noKey=false, firstError="";
+  // Narrowing the phrase is tried across every source before giving up on it entirely: a
+  // one-word search on the best library beats a three-word search on the weakest.
+  outer:
+  for(const attempt of queryLadder(query)){
+    for(const [name,fn] of providers){
+      try{
+        const r=await fn(attempt, page);
+        if(r.length){ results=r; usedSource=name; usedQuery=attempt; break outer; }
+      }catch(e){
+        const msg=(e&&e.message)||String(e);
+        if(msg==="no key"){ noKey=true; continue; }      // not an error, just not set up yet
+        if(!firstError) firstError=name+": "+msg;
+      }
     }
   }
 
   IMG_PICKER.page=page; IMG_PICKER.results=results; IMG_PICKER.source=usedSource;
-  if(EDIT_INDEX>=0 && TEACHER.questions[EDIT_INDEX]) TEACHER.questions[EDIT_INDEX].imageSearch=query;
+
   if(!results.length){
-    status.textContent = firstError
-      ? firstError+". Try again in a moment, or use the upload tile instead."
-      : "Nothing found for “"+query+"”"+(allowCredit?"":" among pictures that need no credit — try ticking the box below the search")+".";
+    status.innerHTML = firstError
+      ? escapeHtml(firstError)+" \u2014 try again shortly, or use the upload tile."
+      : "Nothing found for \u201c"+escapeHtml(query)+"\u201d. Try a plainer, more concrete word \u2014 something you could photograph.";
+    if(noKey && !firstError){
+      status.innerHTML += '<br><b>Unsplash isn\u2019t set up yet</b>, so only the Creative Commons archives were searched. '+
+        'An owner can add the Unsplash key in Admin \u2192 Image Search.';
+    }
     document.getElementById("img-source-note").textContent="";
     return;
   }
-  status.textContent="";
-  document.getElementById("img-source-note").textContent="From "+usedSource+" · tap a picture to use it";
+
+  // Say when the phrase was widened, so a teacher isn't puzzled by results that only loosely
+  // match what they typed.
+  status.textContent = (usedQuery!==query)
+    ? "Nothing for \u201c"+query+"\u201d, so this is \u201c"+usedQuery+"\u201d."
+    : "";
+  document.getElementById("img-source-note").textContent="From "+usedSource+" \u00b7 tap a picture to use it";
   renderImageResults(results, page===0);
   more.style.display="inline-block";
 }
@@ -3290,33 +3423,41 @@ async function chooseImage(r){
   const status=document.getElementById("qe-image-status");
   const urlBox=document.getElementById("qe-image-url");
   closeImagePicker();
-  status.textContent="Copying the picture into your library…";
+
+  const credit = r.needsCredit
+    ? (r.source==="Unsplash" ? "Photo by "+(r.creator||"Unsplash photographer")+" on Unsplash"
+                             : (r.creator||"Unknown")+(r.license?" ("+r.license+")":""))
+    : "";
 
   let finalUrl="", copied=false;
-  try{
-    if(!await mediaReady()) throw new Error("no media token");
-    const payload=await urlToCompressedImage(r.full || r.thumb);
-    finalUrl=await uploadToGitHub(payload.base64, payload.ext);
-    copied=true;
-  }catch(e){
-    finalUrl=r.full || r.thumb;     // fall back to the original location
+  if(r.hotlink){
+    // Unsplash asks that its photos be served from its own CDN, so this one is linked, not copied.
+    finalUrl = r.full || r.thumb;
+    notifyUnsplashUse(r);            // fire and forget: their download count, not our concern
+    status.textContent="\u2713 Added from Unsplash \u2014 the credit shows under the picture.";
+  } else {
+    status.textContent="Copying the picture into your library\u2026";
+    try{
+      if(!await mediaReady()) throw new Error("no media token");
+      const payload=await urlToCompressedImage(r.full || r.thumb);
+      finalUrl=await uploadToGitHub(payload.base64, payload.ext);
+      copied=true;
+    }catch(e){
+      finalUrl=r.full || r.thumb;     // fall back to the original location
+    }
+    status.textContent = copied
+      ? "\u2713 Added to your library" + (credit ? " \u2014 the credit will show under the picture." : ".")
+      : "\u2713 Added, but linked to its original home rather than copied \u2014 it may stop working if that site removes it.";
   }
 
   if(urlBox) urlBox.value=finalUrl;
-  // The credit travels with the question only when the licence actually requires one; a CC0
-  // picture carries nothing, which is what keeps the question clean.
+  // The credit travels with the question, so it can never end up under the wrong picture.
   if(EDIT_INDEX>=0 && TEACHER.questions[EDIT_INDEX]){
     const q=TEACHER.questions[EDIT_INDEX];
-    if(r.needsCredit){ q.imageCredit=(r.creator||"Unknown")+(r.license?" ("+r.license+")":""); }
-    else { delete q.imageCredit; }
+    if(credit) q.imageCredit=credit; else delete q.imageCredit;
   }
-  IMG_LAST_CREDIT = r.needsCredit ? ((r.creator||"Unknown")+(r.license?" ("+r.license+")":"")) : "";
   previewQMedia("image", finalUrl, r.title||"image");
-  status.textContent = copied
-    ? "✓ Added to your library" + (r.needsCredit ? " — the credit will show under the picture." : ".")
-    : "✓ Added, but linked to its original home rather than copied — it may stop working if that site removes it.";
 }
-let IMG_LAST_CREDIT="";
 
 /* Fetch a picture by URL and put it through the same shrink-for-phones step as an upload.
    crossOrigin is set before the source so the canvas stays readable; without it the browser
